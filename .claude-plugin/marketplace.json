@@ -1,0 +1,13 @@
+{
+  "name": "shippy",
+  "owner": {
+    "name": "Maxwell Li"
+  },
+  "plugins": [
+    {
+      "name": "shippy",
+      "source": "./",
+      "description": "Plan-then-build replacement for Claude Code plan mode: the session model plans a staged roadmap, cheaper sub-agents build each stage test-first and commit it, then a rundown."
+    }
+  ]
+}
