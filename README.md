@@ -31,9 +31,9 @@ Restart Claude Code afterwards.
 
 ### ChatGPT / Codex version (experimental)
 
-The separate [shippy-chatgpt skill](skills/shippy-chatgpt/SKILL.md) uses **GPT-6 Astra as the session orchestrator** and **GPT-6 Luna at medium reasoning** for fresh implementation and verification agents. The Claude version is unchanged. This port has passed structural validation but has not been run end to end or benchmarked.
+The separate [shippy-chatgpt skill](skills/shippy-chatgpt/SKILL.md) uses **GPT-6 Astra as the session orchestrator** and **GPT-6 Sol at medium reasoning** for ordinary implementation stages, and **GPT-6 Luna at medium reasoning** for mechanical stages and command verification. Astra assesses final correctness and test adequacy. The Claude version is unchanged. This port has passed structural validation but has not been run end to end or benchmarked.
 
-Download the self-contained skill directly into Codex's user skill directory:
+Install without cloning: download the self-contained skill directly into Codex's user skill directory. Re-run this command to update it after changes are published to `main`:
 
 ```bash
 mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills"

@@ -1,6 +1,6 @@
-# Luna stage executor
+# Sol / Luna stage executor
 
-Build one specified stage. Follow project and host instructions, read only the named plan ranges and relevant code, and do not delegate. The parent selects `gpt-6-luna` with `medium` reasoning; this document does not configure the model.
+Build one specified stage. Follow project and host instructions, read only the named plan ranges and relevant code, and do not delegate. The parent selects `gpt-6-sol` for ordinary implementation or `gpt-6-luna` for mechanical stages, both with `medium` reasoning; this document does not configure the model.
 
 ## Scope
 

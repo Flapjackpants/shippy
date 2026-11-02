@@ -1,16 +1,19 @@
 ---
 name: shippy-chatgpt
-description: Plan and build a code change in stages using Astra as orchestrator and fresh Luna agents at medium reasoning for implementation and verification. Use when the user requests the ChatGPT version of shippy or invokes $shippy-chatgpt.
+description: Plan and build a code change in stages using Astra as orchestrator and fresh Sol agents at medium reasoning for implementation, and Luna medium for mechanical stages and command verification. Use when the user requests the ChatGPT version of shippy or invokes $shippy-chatgpt.
 ---
 
 # Shippy for ChatGPT / Codex
 
-Astra investigates, designs the roadmap and writes each stage spec. Fresh Luna agents build individual stages and run verification, returning compact evidence. This port is unbenchmarked; do not promise token savings or equivalent quality.
+Astra investigates, designs the roadmap and writes each stage spec. Fresh Sol agents build ordinary stages; Luna handles mechanical stages and runs verification commands, returning compact evidence. This port is unbenchmarked; do not promise token savings or equivalent quality.
 
 ## Runtime and model contract
 
 - Orchestrator: the current session, preferably `gpt-6-astra`. A skill cannot change its own session model. If the session uses another model, disclose it and honor the user's choice before claiming an Astra run.
-- Builders and verifier: `gpt-6-luna`, reasoning effort `medium`, including mechanical and high-risk stages. Do not silently escalate models. For high-risk work, make stages smaller and contracts more explicit; request a model change only if necessary to resolve a blocker.
+- Default builder: `gpt-6-sol`, reasoning effort `medium`, for stages with meaningful logic, debugging, interacting components or high-risk behavior. Make high-risk stages smaller and contracts explicit.
+- Mechanical builder: `gpt-6-luna`, reasoning effort `medium`, only for tightly specified stages requiring little implementation judgment: renames, docs, config, fixtures or wiring existing functions. A small file count alone does not make a stage mechanical.
+- Baseline and final command verifier: `gpt-6-luna`, reasoning effort `medium`. Astra assesses correctness and test adequacy; a passing command report is not an independent code review.
+- Preserve exact model generations and effort settings. Do not silently substitute unavailable models or escalate a blocked Luna stage to Sol; obtain agreement unless that escalation is already authorized in the plan.
 - Requires repository read/write access, command execution and a subagent tool that supports the requested model and reasoning. Check actual capabilities before starting. If missing, explain what is unavailable; do not pretend a prompt creates agents or changes their models.
 - Explicitly delegate each implementation stage and baseline/final verification. Run stages sequentially in the shared checkout; never run two writers together. Children must not delegate.
 - Use the host's supported dispatch route. For native `collaboration.spawn_agent`, use the example below. If host instructions require an orchestration service for explicit model settings, use that service's capability discovery and lifecycle instead; do not guess its schema or switch routes after an unavailable-model error.
@@ -37,6 +40,7 @@ Astra investigates, designs the roadmap and writes each stage spec. Fresh Luna a
    - Black-box cases: inputs/actions, observable expectations and test locations.
    - White-box cases only for meaningful internal paths not already covered; `none` is valid.
    - Copy-paste verification commands, expected results and baseline exceptions.
+   - Executor model and reasoning effort, with a short reason for Luna routing.
    - Commit policy and exact Conventional Commit message if applicable.
    Do not include full files or sample implementations. Docs and mechanical changes may use inspection instead of artificial tests.
 4. Honor any requested stage gate. Show the files, behavior, checks and executor before asking. Otherwise dispatch immediately with the plan ranges and executor reference; never copy the entire conversation to a builder.
@@ -52,15 +56,17 @@ Use this only when the host exposes this schema and allows native dispatch for t
 ```javascript
 collaboration.spawn_agent({
   task_name: "stage_1",
-  model: "gpt-6-luna",
+  model: "gpt-6-sol",
   reasoning_effort: "medium",
   fork_turns: "none",
   message: "Build Stage 1 only. Repo: <absolute root>. Read project instructions and <absolute skill directory>/references/stage-executor.md. Plan: <absolute plan path>. Read Shared context lines <a>-<b> and Stage 1 spec lines <c>-<d>. Do not delegate."
 })
 ```
 
-Use a unique task name per stage and fresh verification run. `fork_turns: "none"` avoids inherited orchestration history and allows explicit model/effort overrides. The prompt must supply every needed path and constraint. For verification, use the same model/effort, point to `references/plan-verifier.md`, and supply the repository root and exact commands.
+Use a unique task name per stage and fresh verification run. `fork_turns: "none"` avoids inherited orchestration history and allows explicit model/effort overrides. The prompt must supply every needed path and constraint. For a mechanical builder, change the model to `gpt-6-luna` and keep `medium` effort. For verification, explicitly select `gpt-6-luna` at `medium`, point to `references/plan-verifier.md`, and supply the repository root and exact commands.
 
 ## Finish
+
+Astra compares changed contracts and targeted diffs with the original goal, checks test adequacy, and resolves deviations. Keep this assessment distinct from Luna's command results. Address discovered defects through a bounded fix stage and verify the affected behavior.
 
 Report what changed, verification results and limitations, deviations, local commits (if any) and remaining blockers. Provide a ready-to-paste PR title/body when useful, following the repository template. Distinguish checks actually run from checks unavailable or skipped. State that commits remain unpushed and the plan stays untracked. Do not push, publish or open a PR unless requested.
