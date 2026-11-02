@@ -25,6 +25,27 @@ curl -fsSL https://github.com/Flapjackpants/shippy/archive/refs/heads/main.tar.g
 
 Restart Claude Code afterwards.
 
+### ChatGPT / Codex version (experimental)
+
+The separate [shippy-chatgpt skill](skills/shippy-chatgpt/SKILL.md) uses **GPT-6 Astra as the session orchestrator** and **GPT-6 Luna at medium reasoning** for fresh implementation and verification agents. The Claude version is unchanged. This port has passed structural validation but has not been run end to end or benchmarked.
+
+From a clone of this repository, install the self-contained skill into Codex's user skill directory:
+
+```bash
+mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills"
+cp -R skills/shippy-chatgpt "${CODEX_HOME:-$HOME/.codex}/skills/"
+```
+
+Select Astra for the session, then invoke:
+
+```text
+$shippy-chatgpt add rate limiting to the public API
+```
+
+The host must expose repository tools and subagent model/reasoning controls. The skill checks those capabilities; installing it does not enable them or switch the session model. Its native dispatch example targets the `collaboration.spawn_agent` interface; hosts such as T3 may require their own orchestration service for explicit model settings. In a ChatGPT environment without these tools, the file alone cannot run the pipeline. See the official [subagent documentation](https://developers.openai.com/codex/subagents/) for host availability and configuration.
+
+The port honors existing implementation authorization and requested approval gates, supports per-stage local commits or no commits, and never silently substitutes a different builder model.
+
 ## Usage
 
 ```text
