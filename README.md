@@ -53,9 +53,13 @@ The host must expose repository tools and subagent model/reasoning controls. The
 
 The port honors existing implementation authorization and requested approval gates, supports per-stage local commits or no commits, and never silently substitutes a different builder model.
 
-### T3 hybrid: Claude + Sol / Luna (experimental)
+### T3 hybrid: Claude + free OpenCode workers (experimental)
 
-The self-contained [shippy-t3 skill](skills/shippy-t3/SKILL.md) uses **Claude Opus as the main orchestrator**, **GPT-6 Sol at medium reasoning** for ordinary implementation stages, and **GPT-6 Luna at medium reasoning** for mechanical stages and baseline/final command verification. Claude assesses the final result against the requirements. This workflow has not yet been benchmarked or run end to end.
+The self-contained [shippy-t3 skill](skills/shippy-t3/SKILL.md) uses **Claude Opus as the main orchestrator** and **verified-free OpenCode models** for implementation and command verification. It prefers DeepSeek V4.1 Flash Free for ordinary stages and GLM-5.3-Flash Free for mechanical work and verification, checking current availability and free pricing before a run. These are task assignments, not claims of equivalence to Sonnet, Sol or Luna. Claude assesses the final result. This workflow has not yet been benchmarked or run end to end.
+
+Only after **confirmed usage exhaustion** of the eligible free pool does it fall back to **Sol medium** for ordinary implementation or **Luna medium** for mechanical work and verification. You can select Claude fallback instead: **Sonnet medium** for implementation and **Haiku medium** for command verification. Say `free-only` to disable paid fallback. Fallback uses the selected provider's configured subscription/API allowance; the Opus planner still consumes its own allowance.
+
+Missing setup, expired promotions, generic rate-limit errors, outages, and failed tests do not trigger paid fallback. The skill preserves partial work and stops the old worker before replacing it. See [routing and recovery rules](skills/shippy-t3/references/provider-routing.md).
 
 Install it for T3's Claude provider, without cloning:
 
@@ -73,7 +77,9 @@ In T3, select Claude Opus for the main session and invoke:
 /shippy-t3 add rate limiting to the public API
 ```
 
-T3 must have both Claude and Codex providers enabled and authenticated. The skill checks T3's model capabilities, then uses `delegate_task` for cross-provider execution with explicit reasoning settings. It does not require the other shippy variants or the Claude agent files. It supports per-stage commits or no commits, preserves requested approval gates, and asks before substituting an unavailable model. Installing it in plain Claude Code does not add T3's tools.
+T3 needs Claude and OpenCode enabled, plus the chosen fallback provider when fallback is needed. Install OpenCode using `npm install -g @opencode/cli`, enable it in **Settings → Providers**, and refresh provider status. Free models must appear in its catalog; authenticate the fallback provider separately. The skill checks capabilities and uses `delegate_task` for cross-provider execution, passing only supported reasoning options. It does not require other shippy variants or Claude agent files. Installing it in plain Claude Code does not add T3's tools.
+
+As of November 2, 2026, [OpenCode's free-model page](https://opencode.ai/v2/docs/console/models/#free-models) gives no fixed request/token allowance or end date for these DeepSeek/GLM promotions. Free access is not a guaranteed unlimited quota. The published limits for the separate paid [OpenCode Go subscription](https://opencode.ai/v2/docs/console/go/) do not establish the free offers' allowances.
 
 ## Usage
 

@@ -1,6 +1,6 @@
 # T3 stage executor
 
-Build one specified stage. Follow project and host instructions, read only the named plan ranges and relevant code, and do not delegate. The parent selects Sol or Luna with `medium` reasoning; this document does not configure the model.
+Build one specified stage. Follow project and host instructions, read only the named plan ranges and relevant code, and do not delegate. The parent selects a verified-free OpenCode model or an authorized quota fallback; this document does not configure the model.
 
 ## Scope
 
@@ -15,6 +15,10 @@ Build one specified stage. Follow project and host instructions, read only the n
 3. Add specified white-box tests and meaningful uncovered internal paths. Avoid duplicate coverage, trivial tests, and new production exports solely for testing. Documentation or mechanical stages may use the specified inspection checks instead.
 4. Run the stage verification commands, deduplicating identical commands. Run a full suite only if the stage requests it; the parent owns final verification. Compare against the baseline and report new failures separately from existing ones.
 5. Stop after two unsuccessful fix-and-rerun attempts on the same failure, at most four per stage. Initial red-to-green test development does not count. Report missing tools, network or credentials immediately. Leave partial work intact and uncommitted on a blocker.
+
+## Provider interruption
+
+Never switch models, providers, endpoints or billing modes yourself. If a quota or rate-limit error is visible, report the provider/model, error code and concise redacted message, any reset/Retry-After value, the last completed step/check, and partial edits or commit already made. Do not infer exhaustion from a timeout or HTTP 429 alone. Leave recovery to the parent; do not reset fix-attempt counts or discard edits.
 
 ## Commit policy
 
