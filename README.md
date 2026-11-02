@@ -35,7 +35,7 @@ A plugin install may list it as `/shippy:shippy`. The target must be a git repos
 
 ## How it works
 
-Small changes (about 3 files or fewer, one obvious design, no migration or public-API change) run in **Lean** mode: the session model asks any blocking questions, shows a short plan, builds it and makes one commit, with no plan file or sub-agents.
+Small changes (about 3 files or fewer, one obvious design, no migration or public-API change) run in **Lean** mode: the session model says why the roadmap is optional, asks any blocking questions, shows a short plan and lets you skip the roadmap or ask for one. If you skip it, the session model writes one stage spec, and a fresh sub-agent builds it test-first and makes one commit.
 
 Everything else runs in **Full** mode:
 

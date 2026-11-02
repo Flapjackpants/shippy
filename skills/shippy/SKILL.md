@@ -28,9 +28,9 @@ Ask with AskUserQuestion, up to 4 questions per call. For each question:
 
 ## Phase 0: Size gate
 
-After a first look at the request and the code it touches, choose silently:
+After a first look at the request and the code it touches, check which size applies:
 
-- **Lean**: about 3 files or fewer, one obvious design, no migration or public-API change. No plan file, no sub-agents. Ask any blocking questions, show a 3–6 line plan (Showing the user), and ask for approval: "Build it (Recommended)" / "Something else (I'll type it)". Then implement it yourself in the same order as a builder (black-box tests, implementation, white-box tests), make one commit (commit rules below), and give the Rundown.
+- **Lean**: about 3 files or fewer, one obvious design, no migration or public-API change. The roadmap is optional. Ask any blocking questions. Show one line, `Lean: <n> files, one design, no migration or API change, so the roadmap is optional.`, then a 3–6 line plan (Showing the user). Ask: "Skip roadmap and build (Recommended)" / "Write full roadmap" / "Something else (I'll type it)". On "Write full roadmap", go to Phase 1. On skip, there is one stage and no mode question: run the Phase 1 preflight, write `.plans/<slug>.md` with only Shared context and the Stage 1 spec, add `.plans/` to `.git/info/exclude` if missing, record the baseline with the verifier, dispatch one builder (Builder below), follow Phase 2 step 2e (2f on ⛔), and give the Rundown.
 - **Full**: everything else. Continue below.
 
 ## Phase 1: Roadmap (read-only)
@@ -185,7 +185,7 @@ Spec rules, so the builder never has to search:
 
 Test logs are long, so the verifier runs commands and returns only a short summary. Dispatch with `subagent_type: "plan-verifier"`, `run_in_background: false`, and the prompt `Repo: <root>` followed by the commands one per line. If that type isn't available, use `general-purpose` with `model: "haiku"`, starting the prompt with `First read <path to plan-verifier.md> and follow it exactly.` Trust its report. Re-run a command yourself only if the report is unreadable.
 
-### Commit rules (the builder follows these; you follow them in Lean mode)
+### Commit rules (the builder follows these)
 - One commit per stage: its tests and implementation together, so every commit is green. Use the stage's commit message.
 - Stage files by explicit path; never `git add -A`, `git add .` or `commit -a`; never stage the user's pre-existing changes, `.env` files, secrets, build output, or `.plans/`.
 - The message is only the Conventional Commit: no `Co-authored-by:`, no "Generated with", no links or signatures, no `--author`, no `user.name`/`user.email` changes. Commit with `git commit -F - <<'EOF'` so nothing is appended.
