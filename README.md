@@ -2,7 +2,7 @@
 
 A Claude Code skill that replaces plan mode with a plan-then-build pipeline. Its goal is to use as few tokens as possible for the best code: the expensive model plans, cheaper models build, and every agent carries only what it needs.
 
-**Status:** v0.4.0. Designed and written, but not yet benchmarked or run end to end, so the savings are a hypothesis until measured. The benchmark plan is in [HANDOFF.md](HANDOFF.md).
+**Status:** v0.5.0. Designed and written, but not yet benchmarked or run end to end, so the savings are a hypothesis until measured. The benchmark plan is in [HANDOFF.md](HANDOFF.md).
 
 ## Install
 
