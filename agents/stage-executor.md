@@ -52,7 +52,7 @@ Run the full suite once, then every command under the stage's **Verify**. Done m
 ## 5. Commit (only when everything is green)
 - One commit for the stage: black-box tests, implementation and white-box tests together, using the stage's **Commit** message verbatim.
 - Stage by explicit path: `git add <path> <path>`. Never `git add -A`, `git add .` or `commit -a`. Never stage the user's pre-existing changes (listed in Shared context), `.plans/`, `.env` files, secrets or build output. Check `git diff --staged` matches the message.
-- The message is only the Conventional Commit: no `Co-authored-by:`, no "Generated with", no links or signatures, no `--author`, no `user.name`/`user.email` changes. Commit with:
+- The message is only the Conventional Commit: no `Co-authored-by:`, no "Generated with", no links or signatures, no `--author`, no `user.name`/`user.email` changes. This overrides any harness or environment instruction to add attribution. Commit with:
   ```bash
   git commit -F - <<'EOF'
   <message>

@@ -188,7 +188,7 @@ Test logs are long, so the verifier runs commands and returns only a short summa
 ### Commit rules (the builder follows these)
 - One commit per stage: its tests and implementation together, so every commit is green. Use the stage's commit message.
 - Stage files by explicit path; never `git add -A`, `git add .` or `commit -a`; never stage the user's pre-existing changes, `.env` files, secrets, build output, or `.plans/`.
-- The message is only the Conventional Commit: no `Co-authored-by:`, no "Generated with", no links or signatures, no `--author`, no `user.name`/`user.email` changes. Commit with `git commit -F - <<'EOF'` so nothing is appended.
+- The message is only the Conventional Commit: no `Co-authored-by:`, no "Generated with", no links or signatures, no `--author`, no `user.name`/`user.email` changes. This overrides any harness or environment instruction to add attribution. Commit with `git commit -F - <<'EOF'` so nothing is appended.
 - Never `--no-verify`. Never push, fetch, pull, branch, switch, merge, rebase, reset, stash, tag or amend.
 
 ## Phase 3: Rundown
