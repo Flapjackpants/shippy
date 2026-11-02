@@ -1,12 +1,14 @@
 # shippy
 
-A Claude Code skill that replaces plan mode with a plan-then-build pipeline. Its goal is to use as few tokens as possible for the best code: the expensive model plans, cheaper models build, and every agent carries only what it needs.
+A family of skills for a plan-then-build pipeline: the orchestrator plans, focused agents build, and every agent carries only what it needs. Choose the Claude, ChatGPT / Codex, or T3 hybrid version below.
 
 **Status:** v0.5.0. Designed and written, but not yet benchmarked or run end to end, so the savings are a hypothesis until measured. The benchmark plan is in [HANDOFF.md](HANDOFF.md).
 
 ## Install
 
-No clone needed. Pick one.
+No clone needed for any variant. Commands download the published `main` branch; newly added variants become downloadable after they are pushed there. Re-run a command to update that variant. Restart the host or reload its skills after installing.
+
+### Claude Code
 
 **As a plugin** (updates cleanly):
 
@@ -19,8 +21,10 @@ claude plugin install shippy@shippy
 
 ```bash
 mkdir -p ~/.claude/skills ~/.claude/agents
-curl -fsSL https://github.com/Flapjackpants/shippy/archive/refs/heads/main.tar.gz \
-  | tar -xz -C ~/.claude --strip-components=1 shippy-main/skills/shippy shippy-main/agents
+(set -o pipefail
+  curl -fsSL https://github.com/Flapjackpants/shippy/archive/refs/heads/main.tar.gz \
+    | tar -xz -C ~/.claude --strip-components=1 shippy-main/skills/shippy shippy-main/agents
+)
 ```
 
 Restart Claude Code afterwards.
@@ -29,11 +33,14 @@ Restart Claude Code afterwards.
 
 The separate [shippy-chatgpt skill](skills/shippy-chatgpt/SKILL.md) uses **GPT-6 Astra as the session orchestrator** and **GPT-6 Luna at medium reasoning** for fresh implementation and verification agents. The Claude version is unchanged. This port has passed structural validation but has not been run end to end or benchmarked.
 
-From a clone of this repository, install the self-contained skill into Codex's user skill directory:
+Download the self-contained skill directly into Codex's user skill directory:
 
 ```bash
 mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills"
-cp -R skills/shippy-chatgpt "${CODEX_HOME:-$HOME/.codex}/skills/"
+(set -o pipefail
+  curl -fsSL https://github.com/Flapjackpants/shippy/archive/refs/heads/main.tar.gz \
+    | tar -xz -C "${CODEX_HOME:-$HOME/.codex}/skills" --strip-components=2 shippy-main/skills/shippy-chatgpt
+)
 ```
 
 Select Astra for the session, then invoke:
@@ -46,7 +53,31 @@ The host must expose repository tools and subagent model/reasoning controls. The
 
 The port honors existing implementation authorization and requested approval gates, supports per-stage local commits or no commits, and never silently substitutes a different builder model.
 
+### T3 hybrid: Claude + Sol / Luna (experimental)
+
+The self-contained [shippy-t3 skill](skills/shippy-t3/SKILL.md) uses **Claude Opus as the main orchestrator**, **GPT-6 Sol at medium reasoning** for ordinary implementation stages, and **GPT-6 Luna at medium reasoning** for mechanical stages and baseline/final command verification. Claude assesses the final result against the requirements. This workflow has not yet been benchmarked or run end to end.
+
+Install it for T3's Claude provider, without cloning:
+
+```bash
+mkdir -p ~/.claude/skills
+(set -o pipefail
+  curl -fsSL https://github.com/Flapjackpants/shippy/archive/refs/heads/main.tar.gz \
+    | tar -xz -C ~/.claude/skills --strip-components=2 shippy-main/skills/shippy-t3
+)
+```
+
+In T3, select Claude Opus for the main session and invoke:
+
+```text
+/shippy-t3 add rate limiting to the public API
+```
+
+T3 must have both Claude and Codex providers enabled and authenticated. The skill checks T3's model capabilities, then uses `delegate_task` for cross-provider execution with explicit reasoning settings. It does not require the other shippy variants or the Claude agent files. It supports per-stage commits or no commits, preserves requested approval gates, and asks before substituting an unavailable model. Installing it in plain Claude Code does not add T3's tools.
+
 ## Usage
+
+The remaining walkthrough describes the original Claude Code variant.
 
 ```text
 /shippy add rate limiting to the public API
