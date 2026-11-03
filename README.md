@@ -51,7 +51,7 @@ $shippy-chatgpt add rate limiting to the public API
 
 The host must expose repository tools and subagent model/reasoning controls. The skill checks those capabilities; installing it does not enable them or switch the session model. Its native dispatch example targets the `collaboration.spawn_agent` interface; hosts such as T3 may require their own orchestration service for explicit model settings. In a ChatGPT environment without these tools, the file alone cannot run the pipeline. See the official [subagent documentation](https://developers.openai.com/codex/subagents/) for host availability and configuration.
 
-The port honors existing implementation authorization and requested approval gates, supports per-stage local commits or no commits, and never silently substitutes a different builder model.
+The port asks clarifying questions with recommendations, gets your approval of the plan, commits each stage by default (no commits only if you or the repository's rules forbid them), and never silently substitutes a different builder model.
 
 ### T3 hybrid: Claude + free OpenCode workers (experimental)
 

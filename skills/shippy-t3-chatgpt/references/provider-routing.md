@@ -12,7 +12,7 @@ Starting preferences (verify availability and pricing; these are not benchmarked
 
 Resolve these names to exact catalog IDs, including any provider prefix. The skill authorizes this two-model free pool; adding other models requires the user's agreement. Keep only currently available, confirmed-free candidates. If none can be verified, report that blocker; absence or promotion expiry is not quota exhaustion. If the same candidate serves both categories, record it without inventing distinct capability tiers.
 
-For supported reasoning controls, prefer medium; otherwise clear inherited options with `target.options: {}` and record the model's default. Do not send Codex's `reasoningEffort` or Claude's `effort` key to an OpenCode model unless capabilities expose it. Announce the selected free pool and fallback family in the visible plan; existing implementation authorization does not require an extra approval gate.
+For supported reasoning controls, prefer medium; otherwise clear inherited options with `target.options: {}` and record the model's default. Do not send Codex's `reasoningEffort` or Claude's `effort` key to an OpenCode model unless capabilities expose it. Include the selected free pool and fallback family in the plan shown for approval.
 
 Record in Shared context:
 - Free pool: exact provider/model IDs, options, price evidence/date, category preference.

@@ -18,7 +18,7 @@ Build one specified stage. Follow project and host instructions, read only the n
 
 ## Commit policy
 
-Commit only if the plan authorizes it and required checks pass without new failures. Use one local commit for the stage and the exact supplied message. Stage explicit owned paths, inspect the staged diff, and never include user changes, secrets, build output or `.plans/`. If unrelated staged files exist, stop before committing rather than including or unstaging them. Honor repository message conventions and higher-priority instructions; do not add attribution on your own.
+Commit unless the plan says `Commits: none`, and only after required checks pass without new failures. Use one local commit for the stage and the exact supplied message. Stage explicit owned paths, inspect the staged diff, and never include user changes, secrets, build output or `.plans/`. If unrelated staged files exist, stop before committing rather than including or unstaging them. Honor repository message conventions and higher-priority instructions; do not add attribution on your own.
 
 Never bypass hooks or change git identity. Do not push, fetch, pull, branch, switch, merge, rebase, reset, stash, tag or amend. For `Commits: none`, leave verified edits unstaged and report that no commit was made.
 
