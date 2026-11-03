@@ -1,6 +1,6 @@
 # shippy
 
-A family of skills for a plan-then-build pipeline: the orchestrator plans, focused agents build, and every agent carries only what it needs. Choose the Claude, ChatGPT / Codex, or T3 hybrid version below.
+A family of skills for a plan-then-build pipeline: the orchestrator plans, focused agents build, and every agent carries only what it needs. Choose the Claude, ChatGPT / Codex, or a T3 hybrid version below.
 
 **Status:** v0.5.0. Designed and written, but not yet benchmarked or run end to end, so the savings are a hypothesis until measured. The benchmark plan is in [HANDOFF.md](HANDOFF.md).
 
@@ -80,6 +80,28 @@ In T3, select Claude Opus for the main session and invoke:
 T3 needs Claude and OpenCode enabled, plus the chosen fallback provider when fallback is needed. Install OpenCode using `npm install -g @opencode/cli`, enable it in **Settings → Providers**, and refresh provider status. Free models must appear in its catalog; authenticate the fallback provider separately. The skill checks capabilities and uses `delegate_task` for cross-provider execution, passing only supported reasoning options. It does not require other shippy variants or Claude agent files. Installing it in plain Claude Code does not add T3's tools.
 
 As of November 2, 2026, [OpenCode's free-model page](https://opencode.ai/v2/docs/console/models/#free-models) gives no fixed request/token allowance or end date for these DeepSeek/GLM promotions. Free access is not a guaranteed unlimited quota. The published limits for the separate paid [OpenCode Go subscription](https://opencode.ai/v2/docs/console/go/) do not establish the free offers' allowances.
+
+### T3 hybrid: Astra + free OpenCode workers (experimental)
+
+The self-contained [shippy-t3-chatgpt skill](skills/shippy-t3-chatgpt/SKILL.md) is the same workflow as shippy-t3 with **GPT-6 Astra as the main orchestrator**. Astra plans, writes stage specs and assesses the final result. Workers, quota-only fallback and recovery follow the same [routing rules](skills/shippy-t3-chatgpt/references/provider-routing.md), and the free-model caveats above apply. The Astra planner consumes its own allowance. This workflow has not been benchmarked or run end to end.
+
+Install it for T3's Codex provider, without cloning:
+
+```bash
+mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills"
+(set -o pipefail
+  curl -fsSL https://github.com/Flapjackpants/shippy/archive/refs/heads/main.tar.gz \
+    | tar -xz -C "${CODEX_HOME:-$HOME/.codex}/skills" --strip-components=2 shippy-main/skills/shippy-t3-chatgpt
+)
+```
+
+In T3, select GPT-6 Astra for the main session and invoke:
+
+```text
+$shippy-t3-chatgpt add rate limiting to the public API
+```
+
+T3 needs Codex and OpenCode enabled, plus Claude only if you select Claude fallback.
 
 ## Usage
 
