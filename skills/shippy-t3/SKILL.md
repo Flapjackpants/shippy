@@ -1,19 +1,19 @@
 ---
 name: shippy-t3
-description: Plan and build code changes in T3 with Claude Opus orchestration, free OpenCode implementation and verification agents, and quota-only Sol/Luna or Claude fallback. Use when the user invokes shippy-t3 or requests the hybrid Claude/OpenAI shippy workflow.
+description: Plan and build code changes in T3 with Claude Opus orchestration, free OpenCode implementation and verification agents, and Sol/Luna then Claude fallback. Use when the user invokes shippy-t3 or requests the hybrid Claude/OpenAI shippy workflow.
 ---
 
 # Shippy for T3
 
-Claude Opus investigates, designs the roadmap, writes stage specs and assesses the final result. Free OpenCode agents build stages and run verification commands. Codex or Claude workers take over only after confirmed free-usage exhaustion under the recorded fallback policy. This variant is unbenchmarked; do not promise savings or equivalent quality.
+Claude Opus investigates, designs the roadmap, writes stage specs and assesses the final result. Free OpenCode agents build stages and run verification commands. Codex, then Claude, workers take over only after a confirmed OpenCode provider failure. This variant is unbenchmarked; do not promise savings or equivalent quality.
 
 ## Runtime and model contract
 
 - Preferred orchestrator: a Claude Opus main session (`claude-opus-5-5`). A skill cannot switch the active session. If invoked under another model, explain that mismatch before execution and ask whether to continue with that orchestrator or let the user select Opus. Never silently add a second planning layer or create a new top-level thread.
 - Worker routing is defined in [references/provider-routing.md](references/provider-routing.md). Read it before planning dispatches. Use free OpenCode models for ordinary implementation, mechanical stages and command verification. These are task categories, not claims that a free model equals Sonnet, Sol or Luna in quality.
-- Default quota-only fallback: `gpt-6-sol` at medium for ordinary/high-risk implementation; `gpt-6-luna` at medium for mechanical stages and command verification. A user-selected Claude fallback uses Sonnet medium for implementation and Haiku medium for command verification. Record one fallback family before execution; do not cycle through paid providers.
+- Fallback chain after a provider failure: `gpt-6-sol` at medium for ordinary/high-risk implementation and `gpt-6-luna` at medium for mechanical stages and command verification; then, as the last line, Sonnet medium for implementation and Haiku medium for command verification.
 - Running tests is not an independent correctness review: Claude assesses whether the implementation satisfies requirements and whether checks cover changed contracts. High-risk work needs smaller stages and explicit contracts, regardless of executor.
-- Before the first dispatch, call T3 `orchestrator_capabilities` once per thread. Reuse its result; repeat only after an error or user-named provider change. Resolve exact provider/model IDs and supported options. A disabled or unavailable provider is a setup blocker, not quota exhaustion. Do not substitute models beyond the recorded routing policy.
+- Before the first dispatch, call T3 `orchestrator_capabilities` once per thread. Reuse its result; repeat only after an error or user-named provider change. Resolve exact provider/model IDs and supported options. A disabled or unavailable OpenCode provider starts the fallback chain; it is a blocker only when no chain step is available. Do not substitute models beyond the recorded routing policy.
 - Requires T3 `delegate_task`, repository access and command execution. If unavailable, report the missing capability; do not fall back to native agents, Workflow or a CLI. A downloaded skill does not enable T3 or provider authentication.
 - Explicitly delegate each implementation stage and baseline/final verification through T3. Run stages sequentially with `isolation: shared`; never run two writers together. Children must not delegate.
 - Read [references/stage-executor.md](references/stage-executor.md) when preparing a builder and [references/plan-verifier.md](references/plan-verifier.md) when preparing verification. Resolve absolute paths before dispatch. All references ship inside this skill; no other skill installation is required.
@@ -48,18 +48,18 @@ Until the plan is approved, change nothing except the plan file: reads, searches
    - Black-box cases: inputs/actions, observable expectations and test locations.
    - White-box cases only for meaningful internal paths not already covered; `none` is valid.
    - Copy-paste verification commands, expected results and baseline exceptions.
-   - Task category, exact executor/provider/options, verified-free evidence, and quota-only fallback target. Record any confirmed exhaustion and reset time in Shared context.
+   - Task category, exact executor/provider/options, and next chain target. Record any confirmed provider failure and reset time in Shared context.
    - Commit policy and exact Conventional Commit message if applicable.
    Do not include full files or sample implementations. Docs and mechanical changes may use inspection instead of artificial tests.
 4. In confirm mode, show in at most 12 lines each file and what changes in it, the tests added, the commit subject, the executor and any roadmap change. Ask "Build Stage <N> (Recommended)" / "Build all remaining stages without asking" / "Something else (I'll type it)". On a typed change, edit the spec and ask again; on "without asking", set `Approval: auto`. In auto mode, skip this. A decision the plan did not settle goes in the same question in confirm mode; in auto mode take your recommendation for implementation-level choices and log it under Assumptions, asking only if it changes user-visible behavior, the public API or stored data. Dispatch with the plan ranges and executor reference; never copy the entire conversation to a builder.
 5. Follow T3's returned lifecycle instructions (below). Do not start the next stage while a writer remains active.
 6. Inspect the report and targeted evidence: status, diff stat and commit identity when applicable. Investigate missing checks, unexpected files or contract deviations; do not routinely reread all code or rerun passing commands.
-7. If blocked, correct a settled spec/anchor/command gap and create one fresh replacement task, identifying partial edits it owns. Cancel the old task first if still active. For a second blocker or a new product decision, return the concrete blocker to the user with a recommended resolution. Coding failures do not authorize a paid fallback. For a provider quota error, follow the separate bounded recovery procedure in provider-routing.md; preserve the stage's fix-attempt count.
+7. If blocked, correct a settled spec/anchor/command gap and create one fresh replacement task, identifying partial edits it owns. Cancel the old task first if still active. For a second blocker or a new product decision, return the concrete blocker to the user with a recommended resolution. Coding failures do not authorize a paid fallback. For a provider failure, follow the separate bounded recovery procedure in provider-routing.md; preserve the stage's fix-attempt count.
 8. After the last stage, run final verification via a fresh worker selected by the routing policy. A new failure gets a bounded fix stage; environmental blockers must remain explicitly reported, not labeled passing.
 
 ### T3 dispatch and lifecycle
 
-Use `delegate_task` with the provider ID from capabilities, options in `target.options`, and a self-contained task. The following example uses placeholders: replace the provider and model with the exact OpenCode IDs returned by capabilities, after confirming the model is free:
+Use `delegate_task` with the provider ID from capabilities, options in `target.options`, and a self-contained task. The following example uses placeholders: replace the provider and model with the exact OpenCode IDs returned by capabilities:
 
 ```json
 {
@@ -70,7 +70,7 @@ Use `delegate_task` with the provider ID from capabilities, options in `target.o
   "isolation": "shared",
   "target": {
     "providerInstanceId": "<OpenCode provider instance ID>",
-    "model": "<verified-free model ID from catalog>",
+    "model": "<free model ID from catalog>",
     "options": {}
   },
   "task": "Build Stage 1 only. Repo: <absolute root>. Read project instructions and <absolute skill directory>/references/stage-executor.md. Plan: <absolute plan path>. Read Shared context lines <a>-<b> and Stage 1 spec lines <c>-<d>. Do not delegate. Return changes, checks, deviations and blockers."
@@ -91,4 +91,4 @@ Use the routing policy for each task category. An empty `target.options` clears 
 
 Claude compares the changed contracts and targeted diffs with the original goal, checking test adequacy and unresolved deviations. Keep this assessment distinct from the command verifier's results. Address a discovered defect through a bounded fix stage and re-check the affected behavior; do not call a passing suite proof of correctness.
 
-Report what changed, verification results and limitations, actual worker models and any quota-triggered fallback evidence, deviations, local commits (if any) and remaining blockers. Provide a ready-to-paste PR title/body when useful, following the repository template. Distinguish checks actually run from checks unavailable or skipped. State that commits remain unpushed and the plan stays untracked. Do not push, publish or open a PR unless requested.
+Report what changed, verification results and limitations, actual worker models and any provider-failure fallback evidence, deviations, local commits (if any) and remaining blockers. Provide a ready-to-paste PR title/body when useful, following the repository template. Distinguish checks actually run from checks unavailable or skipped. State that commits remain unpushed and the plan stays untracked. Do not push, publish or open a PR unless requested.
