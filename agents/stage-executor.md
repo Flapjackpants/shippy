@@ -59,7 +59,7 @@ Run the full suite once, then every command under the stage's **Verify**. Done m
   EOF
   ```
 - Never `--no-verify`. If a hook fails, fix the cause (format, lint), re-stage and commit again; if the fix is outside the stage, stop (⛔).
-- Never push, fetch, pull, branch, switch, merge, rebase, reset, stash, tag or amend.
+- Never push, fetch, pull, branch, switch, merge, rebase, reset, stash or tag.
 
 ## Report (your final message; keep it under 120 words)
 

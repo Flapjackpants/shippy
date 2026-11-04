@@ -55,7 +55,7 @@ Until the plan is approved, change nothing except the plan file: reads, searches
 5. Follow T3's returned lifecycle instructions (below). Do not start the next stage while a writer remains active.
 6. Inspect the report and targeted evidence: status, diff stat and commit identity when applicable. Check `git log -1 --format=%B` for attribution the spec did not supply; remove it as the stage executor's commit policy describes, under the same limits, and report it. Investigate missing checks, unexpected files or contract deviations; do not routinely reread all code or rerun passing commands.
 7. If blocked, correct a settled spec/anchor/command gap and create one fresh replacement task, identifying partial edits it owns. Cancel the old task first if still active. For a second blocker or a new product decision, return the concrete blocker to the user with a recommended resolution. Coding failures do not authorize a paid fallback. For a provider failure, follow the separate bounded recovery procedure in provider-routing.md; preserve the stage's fix-attempt count.
-8. After the last stage, run final verification via a fresh worker selected by the routing policy. A new failure gets a bounded fix stage; environmental blockers must remain explicitly reported, not labeled passing.
+8. After the last stage, run final verification via a fresh worker selected by the routing policy. Supply `START_SHA` so the verifier also removes co-authors from this run's commits, and take new commit SHAs from its report. A new failure gets a bounded fix stage; environmental blockers must remain explicitly reported, not labeled passing.
 
 ### T3 dispatch and lifecycle
 

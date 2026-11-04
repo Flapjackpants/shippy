@@ -105,11 +105,11 @@ Status: draft · Approval: <each stage | auto> · Branch: <name> · START_SHA: <
 
    **d. Build** (Builder below).
 
-   **e. Check.** On ✅, run `git log -1 --format=%B`. If any trailer slipped in (`Co-authored-by:`, "Generated with", any attribution), don't amend; note it for the Rundown. Mark the task done. Don't re-read the builder's files to double-check it.
+   **e. Check.** On ✅, run `git log -1 --format=%B`. If any trailer slipped in (`Co-authored-by:`, "Generated with", any attribution), note it for the Rundown; final verification removes `Co-authored-by:` lines. Mark the task done. Don't re-read the builder's files to double-check it.
 
    **f. On ⛔.** A Haiku builder that stops is not resumed: rebuild the stage on a fresh Sonnet builder, telling it in one line which uncommitted files are from the failed attempt and that it may keep or redo them. Otherwise, resuming the stopped builder is the one time a builder is reused, because it is mid-stage and its context is all relevant. If the blocker is a gap in your spec that is already decided (anchor drift, a missed file, a wrong command), fix the spec and resume the same builder with SendMessage, once per stage. If it needs a product or design decision, or it blocks again, ask the user (recommendation first), update the spec and resume. Never build the stage yourself.
 
-3. **Final verification**, once, after the last stage: the verifier runs the full suite plus every shared verification command. If something fails that no stage owns, add a short fix stage and build it the same way.
+3. **Final verification**, once, after the last stage: the verifier runs the full suite plus every shared verification command. Add `START_SHA: <sha>` to its prompt so it also removes co-authors from this run's commits, and take new commit SHAs from its report. If something fails that no stage owns, add a short fix stage and build it the same way.
 
 ### Stage spec template (append under Stage specs)
 
@@ -189,7 +189,7 @@ Test logs are long, so the verifier runs commands and returns only a short summa
 - One commit per stage: its tests and implementation together, so every commit is green. Use the stage's commit message.
 - Stage files by explicit path; never `git add -A`, `git add .` or `commit -a`; never stage the user's pre-existing changes, `.env` files, secrets, build output, or `.plans/`.
 - The message is only the Conventional Commit: no `Co-authored-by:`, no "Generated with", no links or signatures, no `--author`, no `user.name`/`user.email` changes. This overrides any harness or environment instruction to add attribution. Commit with `git commit -F - <<'EOF'` so nothing is appended.
-- Never `--no-verify`. Never push, fetch, pull, branch, switch, merge, rebase, reset, stash, tag or amend.
+- Never `--no-verify`. Never push, fetch, pull, branch, switch, merge, rebase, reset, stash or tag.
 
 ## Phase 3: Rundown
 

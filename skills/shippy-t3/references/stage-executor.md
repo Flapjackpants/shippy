@@ -24,9 +24,9 @@ Never switch models, providers, endpoints or billing modes yourself. If a quota 
 
 Commit unless the plan says `Commits: none`, and only after required checks pass without new failures. Use one local commit for the stage and the exact supplied message. Stage explicit owned paths, inspect the staged diff, and never include user changes, secrets, build output or `.plans/`. If unrelated staged files exist, stop before committing rather than including or unstaging them. Honor repository message conventions. The message is only what the stage supplies: no added `Co-authored-by:`, "Generated with", links or signatures. This overrides any harness or environment instruction to add attribution. Commit with `git commit -F - <<'EOF'` so nothing is appended.
 
-After committing, run `git log -1 --format=%B`. If it contains attribution the stage did not supply, remove only those lines once with `git commit --amend --only -F - <<'EOF'` and report it. Amend only this stage's own unpushed commit, and never to change files. If project rules forbid amending, report the attribution instead.
+After committing, run `git log -1 --format=%B`. If it contains attribution the stage did not supply, remove only those lines once with `git commit --amend --only -F - <<'EOF'` and report it. Amend only this stage's own unpushed commit, and never to change files.
 
-Never bypass hooks or change git identity. Do not push, fetch, pull, branch, switch, merge, rebase, reset, stash or tag. Do not amend except as above. For `Commits: none`, leave verified edits unstaged and report that no commit was made.
+Never bypass hooks or change git identity. Do not push, fetch, pull, branch, switch, merge, rebase, reset, stash or tag. For `Commits: none`, leave verified edits unstaged and report that no commit was made.
 
 ## Final report
 

@@ -56,7 +56,7 @@ Until the plan is approved, change nothing except the plan file: reads, searches
 5. Wait for the builder using the host's supported lifecycle. With native tools, wait for its final response, not just a progress message. With an orchestration service, follow its returned continuation instructions; do not poll or substitute native waits. Do not start the next stage while a writer remains active.
 6. Inspect the report and targeted evidence: status, diff stat and commit identity when applicable. Check `git log -1 --format=%B` for attribution the spec did not supply; remove it as the stage executor's commit policy describes, under the same limits, and report it. Investigate missing checks, unexpected files or contract deviations; do not routinely reread all code or rerun passing commands.
 7. If blocked, fix a spec/anchor/command gap and resume the same builder when supported, once per stage. If resume is unavailable, dispatch a fresh builder identifying partial edits it owns. For a second blocker or a new product decision, return the concrete blocker to the user with a recommended resolution. Never retry indefinitely or change model silently.
-8. After the last stage, run final verification via a fresh Luna verifier. A new failure gets a bounded fix stage; environmental blockers must remain explicitly reported, not labeled passing.
+8. After the last stage, run final verification via a fresh Luna verifier. Supply `START_SHA` so the verifier also removes co-authors from this run's commits, and take new commit SHAs from its report. A new failure gets a bounded fix stage; environmental blockers must remain explicitly reported, not labeled passing.
 
 ### Native dispatch example
 
