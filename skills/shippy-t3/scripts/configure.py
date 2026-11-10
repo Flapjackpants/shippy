@@ -56,9 +56,16 @@ def load_config(catalog, path=None):
 
     routes = []
     seen_routes = set()
+    paid_from_routes = []
+    seen_paid_from_routes = set()
     for p in raw.get("routes", []):
         if p not in known_providers:
             sys.stderr.write(f"Warning: unknown provider '{p}'\n")
+            continue
+        if known_providers[p].get("tier") == "paid":
+            if p not in seen_paid_from_routes:
+                seen_paid_from_routes.add(p)
+                paid_from_routes.append(p)
             continue
         if p not in seen_routes:
             seen_routes.add(p)
@@ -76,6 +83,11 @@ def load_config(catalog, path=None):
             seen_fallbacks.add(p)
             fallbacks.append(p)
 
+    for p in paid_from_routes:
+        if p not in seen_fallbacks:
+            seen_fallbacks.add(p)
+            fallbacks.append(p)
+
     per_cat = raw.get("perCategory", 4)
     if not isinstance(per_cat, int) or isinstance(per_cat, bool):
         per_cat = 4
@@ -88,13 +100,17 @@ def load_config(catalog, path=None):
 def build_routes(catalog, config):
     routes_enabled = set(config.get("routes", []))
     per_category = config.get("perCategory", 4)
+    providers = catalog.get("providers", {})
     result = {}
 
     for cat in CATEGORIES:
         free_models = []
         for idx, model in enumerate(catalog.get("models", [])):
-            if model["provider"] in routes_enabled and cat in model.get(
-                "ranks", {}
+            prov = model["provider"]
+            if (
+                prov in routes_enabled
+                and providers.get(prov, {}).get("tier") != "paid"
+                and cat in model.get("ranks", {})
             ):
                 free_models.append((model["ranks"][cat], idx, model))
         free_models.sort(key=lambda x: (x[0], x[1]))
@@ -243,7 +259,7 @@ def _interactive_loop(catalog, config):
         elif line.isdigit():
             n = int(line)
             if 1 <= n <= len(providers_list):
-                pid, _ = providers_list[n - 1]
+                pid, pinfo = providers_list[n - 1]
                 if pid in config["routes"]:
                     config["routes"].remove(pid)
                     if pid not in config["fallbacks"]:
@@ -251,7 +267,11 @@ def _interactive_loop(catalog, config):
                 elif pid in config["fallbacks"]:
                     config["fallbacks"].remove(pid)
                 else:
-                    config["routes"].append(pid)
+                    if pinfo.get("tier") == "paid":
+                        if pid not in config["fallbacks"]:
+                            config["fallbacks"].append(pid)
+                    else:
+                        config["routes"].append(pid)
             else:
                 print("?")
         elif line.startswith("u"):

@@ -164,6 +164,58 @@ class TestConfigureBlackBox(unittest.TestCase):
         ]
         self.assertEqual(len(dash_lines), 4)
 
+    def test_13_paid_provider_not_in_free_routes(self):
+        cfg = {"routes": ["codex", "opencode"], "fallbacks": [], "perCategory": 4}
+        routes = self.configure.build_routes(self.catalog, cfg)
+        for cat in self.configure.CATEGORIES:
+            providers = [m["provider"] for m in routes[cat]["free"]]
+            self.assertNotIn("codex", providers)
+
+    def test_14_load_config_moves_paid_provider_from_routes_to_fallbacks(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            orig = os.environ.get("SHIPPY_CONFIG_DIR")
+            try:
+                os.environ["SHIPPY_CONFIG_DIR"] = tmp_dir
+                cfg_file = Path(tmp_dir) / "t3.json"
+                raw = {
+                    "routes": ["opencode", "codex"],
+                    "fallbacks": [],
+                    "perCategory": 4,
+                }
+                with open(cfg_file, "w", encoding="utf-8") as f:
+                    json.dump(raw, f)
+                loaded = self.configure.load_config(self.catalog)
+                self.assertEqual(loaded["routes"], ["opencode"])
+                self.assertEqual(loaded["fallbacks"], ["codex"])
+            finally:
+                if orig is not None:
+                    os.environ["SHIPPY_CONFIG_DIR"] = orig
+                else:
+                    os.environ.pop("SHIPPY_CONFIG_DIR", None)
+
+    def test_15_interactive_loop_paid_provider_cycles_fallback_off_fallback(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            orig = os.environ.get("SHIPPY_CONFIG_DIR")
+            try:
+                os.environ["SHIPPY_CONFIG_DIR"] = tmp_dir
+                inputs = iter(["12", "12", "s"])
+                with patch("builtins.input", side_effect=inputs), \
+                     patch("sys.stdin.isatty", return_value=True), \
+                     patch("sys.stdout", new_callable=io.StringIO):
+                    ret = self.configure.main([])
+                self.assertEqual(ret, 0)
+                cfg_file = Path(tmp_dir) / "t3.json"
+                self.assertTrue(cfg_file.is_file())
+                with open(cfg_file, "r", encoding="utf-8") as f:
+                    saved = json.load(f)
+                self.assertIn("codex", saved["fallbacks"])
+                self.assertNotIn("codex", saved["routes"])
+            finally:
+                if orig is not None:
+                    os.environ["SHIPPY_CONFIG_DIR"] = orig
+                else:
+                    os.environ.pop("SHIPPY_CONFIG_DIR", None)
+
 
 class TestConfigureWhiteBox(unittest.TestCase):
     @classmethod
@@ -179,8 +231,8 @@ class TestConfigureWhiteBox(unittest.TestCase):
 
             # Case A: unknown provider, both routes & fallbacks, clamp 99 -> 8
             raw_a = {
-                "routes": ["antigravity", "unknown_provider_1", "codex", "antigravity"],
-                "fallbacks": ["codex", "unknown_provider_2", "claudeAgent", "claudeAgent"],
+                "routes": ["antigravity", "unknown_provider_1", "opencode", "antigravity"],
+                "fallbacks": ["opencode", "unknown_provider_2", "claudeAgent", "claudeAgent"],
                 "perCategory": 99,
             }
             with open(cfg_file, "w", encoding="utf-8") as f:
@@ -190,8 +242,8 @@ class TestConfigureWhiteBox(unittest.TestCase):
             with patch("sys.stderr", stderr_buf):
                 loaded_a = self.configure.load_config(self.catalog, path=cfg_file)
 
-            self.assertEqual(loaded_a["routes"], ["antigravity", "codex"])
-            # codex is in routes, so it must not stay in fallbacks
+            self.assertEqual(loaded_a["routes"], ["antigravity", "opencode"])
+            # opencode is in routes, so it must not stay in fallbacks
             self.assertEqual(loaded_a["fallbacks"], ["claudeAgent"])
             self.assertEqual(loaded_a["perCategory"], 8)
             self.assertIn("unknown_provider_1", stderr_buf.getvalue())
