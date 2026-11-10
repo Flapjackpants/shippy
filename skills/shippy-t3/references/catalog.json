@@ -1,0 +1,528 @@
+{
+  "categories": [
+    "high-risk",
+    "ordinary",
+    "mechanical",
+    "verification"
+  ],
+  "providers": {
+    "antigravity": {
+      "name": "Antigravity",
+      "tier": "free",
+      "note": "Free Gemini, Claude and GPT quota pools; reset times in T3's quota panel",
+      "default": "route",
+      "pools": {
+        "gemini": [
+          "gemini-3.8-flash"
+        ],
+        "claude": [
+          "claude-opus-4-6-thinking",
+          "claude-sonnet-4-6"
+        ],
+        "gpt": [
+          "gpt-oss-120b-medium"
+        ]
+      }
+    },
+    "opencode": {
+      "name": "OpenCode",
+      "tier": "free",
+      "note": "Free promotional models; no published allowance",
+      "default": "route"
+    },
+    "acpRegistry_kilo": {
+      "name": "Kilo",
+      "tier": "free",
+      "note": "kilo-auto/free: 200 requests/hour per IP",
+      "default": "route",
+      "sharedPool": true
+    },
+    "acpRegistry_cline": {
+      "name": "Cline",
+      "tier": "free",
+      "note": ":free models, rate-limited",
+      "default": "route"
+    },
+    "acpRegistry_kimi_code": {
+      "name": "Kimi Code",
+      "tier": "limited",
+      "note": "Kimi Code plan quota; free tier unclear, may use a paid plan",
+      "default": "off",
+      "sharedPool": true
+    },
+    "acpRegistry_devin": {
+      "name": "Devin",
+      "tier": "limited",
+      "note": "Light Free quota; SWE-2 Flash reportedly free until 2026-11-30",
+      "default": "off",
+      "sharedPool": true
+    },
+    "acpRegistry_qoder_cli": {
+      "name": "Qoder CLI",
+      "tier": "limited",
+      "note": "Free plan: basic models, daily and monthly limits",
+      "default": "off",
+      "sharedPool": true
+    },
+    "acpRegistry_kiro_cli": {
+      "name": "Kiro CLI",
+      "tier": "limited",
+      "note": "Free: 50 credits per month",
+      "default": "off",
+      "sharedPool": true
+    },
+    "acpRegistry_junie": {
+      "name": "Junie",
+      "tier": "limited",
+      "note": "AI Free: 3 credits per 30 days",
+      "default": "off",
+      "sharedPool": true
+    },
+    "acpRegistry_github_copilot": {
+      "name": "GitHub Copilot",
+      "tier": "limited",
+      "note": "Copilot Free: small AI Credits allowance; sign in first",
+      "default": "off",
+      "sharedPool": true
+    },
+    "acpRegistry_mistral_vibe": {
+      "name": "Mistral Vibe",
+      "tier": "limited",
+      "note": "Free Vibe budget unpublished",
+      "default": "off",
+      "sharedPool": true
+    },
+    "codex": {
+      "name": "Codex",
+      "tier": "paid",
+      "note": "Uses your ChatGPT/Codex plan or API allowance",
+      "default": "fallback"
+    },
+    "claudeAgent": {
+      "name": "Claude",
+      "tier": "paid",
+      "note": "Uses your Claude plan or API allowance",
+      "default": "fallback"
+    }
+  },
+  "models": [
+    {
+      "provider": "acpRegistry_kimi_code",
+      "id": "kimi-code/k3.1-pro",
+      "label": "Kimi k3.1 Pro",
+      "options": {
+        "thinking": "high"
+      },
+      "ranks": {
+        "high-risk": 1,
+        "ordinary": 3
+      },
+      "basis": "DeepSWE 75.5, overall 74.6"
+    },
+    {
+      "provider": "opencode",
+      "id": "opencode/deepseek-v4.1-flash-free",
+      "label": "DeepSeek V4.1 Flash",
+      "options": {},
+      "ranks": {
+        "high-risk": 2,
+        "ordinary": 4,
+        "mechanical": 8
+      },
+      "basis": "coding 63.2"
+    },
+    {
+      "provider": "antigravity",
+      "id": "gemini-3.8-flash",
+      "label": "Gemini 3.8 Flash",
+      "options": {
+        "thinking_level": "medium"
+      },
+      "ranks": {
+        "high-risk": 3,
+        "ordinary": 1,
+        "mechanical": 9,
+        "verification": 8
+      },
+      "basis": "coding 60, agentic 64.7"
+    },
+    {
+      "provider": "opencode",
+      "id": "opencode/inkling-2-small-free",
+      "label": "Inkling 2 Small",
+      "options": {
+        "variant": "medium"
+      },
+      "ranks": {
+        "high-risk": 4,
+        "ordinary": 5,
+        "mechanical": 4,
+        "verification": 5
+      },
+      "basis": "coding 59.2, agentic 59.9"
+    },
+    {
+      "provider": "acpRegistry_kimi_code",
+      "id": "kimi-code/k3",
+      "label": "Kimi k3",
+      "options": {
+        "thinking": "high"
+      },
+      "ranks": {
+        "high-risk": 5,
+        "ordinary": 2
+      },
+      "basis": "coding 58.9, agentic 66.7"
+    },
+    {
+      "provider": "opencode",
+      "id": "opencode/mimo-v2.6-flash-free",
+      "label": "MiMo V2.6 Flash",
+      "options": {},
+      "ranks": {
+        "high-risk": 6,
+        "ordinary": 6,
+        "mechanical": 2,
+        "verification": 3
+      },
+      "basis": "coding 56.4"
+    },
+    {
+      "provider": "opencode",
+      "id": "opencode/longcat-2.5-free",
+      "label": "LongCat 2.5",
+      "options": {},
+      "ranks": {
+        "high-risk": 7,
+        "ordinary": 7,
+        "mechanical": 3,
+        "verification": 4
+      },
+      "basis": "DeepSWE 64.6, TB2.1 88.4"
+    },
+    {
+      "provider": "acpRegistry_devin",
+      "id": "swe-2-flash-medium",
+      "label": "SWE-2 Flash Medium",
+      "options": {},
+      "ranks": {
+        "high-risk": 8,
+        "ordinary": 8
+      },
+      "basis": "DeepSWE 60.1, TB2.1 89.2"
+    },
+    {
+      "provider": "antigravity",
+      "id": "claude-opus-4-6-thinking",
+      "label": "Claude Opus 4.6 Thinking",
+      "options": {
+        "thinking_level": "medium"
+      },
+      "ranks": {
+        "high-risk": 9
+      },
+      "basis": "coding 46.4"
+    },
+    {
+      "provider": "opencode",
+      "id": "opencode/glm-5.3-flash-free",
+      "label": "GLM 5.3 Flash",
+      "options": {},
+      "ranks": {
+        "high-risk": 10,
+        "ordinary": 9,
+        "mechanical": 1,
+        "verification": 2
+      },
+      "basis": "coding 48.5, agentic 58.3"
+    },
+    {
+      "provider": "antigravity",
+      "id": "claude-sonnet-4-6",
+      "label": "Claude Sonnet 4.6",
+      "options": {
+        "thinking_level": "medium"
+      },
+      "ranks": {
+        "high-risk": 11,
+        "ordinary": 10,
+        "mechanical": 5
+      },
+      "basis": "coding 45.1"
+    },
+    {
+      "provider": "acpRegistry_kilo",
+      "id": "kilo/kilo-auto/free",
+      "label": "Kilo Auto",
+      "options": {
+        "mode": "code"
+      },
+      "ranks": {
+        "high-risk": 12,
+        "ordinary": 11,
+        "mechanical": 6,
+        "verification": 1
+      },
+      "basis": "router, 200 requests/hour; unscored"
+    },
+    {
+      "provider": "acpRegistry_cline",
+      "id": "thinkingmachines/inkling-small:free",
+      "label": "Inkling Small",
+      "options": {
+        "mode": "act"
+      },
+      "ranks": {
+        "high-risk": 13,
+        "ordinary": 12,
+        "mechanical": 7,
+        "verification": 6
+      },
+      "basis": "coding 37.2"
+    },
+    {
+      "provider": "acpRegistry_cline",
+      "id": "thinkingmachines/inkling:free",
+      "label": "Inkling",
+      "options": {
+        "mode": "act"
+      },
+      "ranks": {
+        "ordinary": 13,
+        "mechanical": 10,
+        "verification": 7
+      },
+      "basis": "coding 33.7"
+    },
+    {
+      "provider": "acpRegistry_qoder_cli",
+      "id": "default",
+      "label": "Default",
+      "options": {},
+      "ranks": {
+        "ordinary": 14,
+        "mechanical": 12
+      },
+      "basis": "Auto routing; unscored"
+    },
+    {
+      "provider": "acpRegistry_kiro_cli",
+      "id": "default",
+      "label": "Default",
+      "options": {},
+      "ranks": {
+        "ordinary": 15,
+        "mechanical": 13
+      },
+      "basis": "50 credits/month; unscored"
+    },
+    {
+      "provider": "acpRegistry_junie",
+      "id": "default",
+      "label": "Default",
+      "options": {},
+      "ranks": {
+        "ordinary": 16,
+        "mechanical": 14
+      },
+      "basis": "3 credits/30 days; unscored"
+    },
+    {
+      "provider": "acpRegistry_github_copilot",
+      "id": "default",
+      "label": "Default",
+      "options": {},
+      "ranks": {
+        "ordinary": 17,
+        "mechanical": 15
+      },
+      "basis": "Copilot Free; unscored"
+    },
+    {
+      "provider": "opencode",
+      "id": "opencode/beam-free",
+      "label": "Beam",
+      "options": {
+        "variant": "medium"
+      },
+      "ranks": {
+        "mechanical": 11,
+        "verification": 9
+      },
+      "basis": "coding 30.8"
+    },
+    {
+      "provider": "acpRegistry_cline",
+      "id": "nvidia/nemotron-3.5-super-vl:free",
+      "label": "Nemotron 3.5 Super VL",
+      "options": {
+        "mode": "act"
+      },
+      "ranks": {
+        "mechanical": 16,
+        "verification": 10
+      },
+      "basis": "SWE-V 71.1"
+    },
+    {
+      "provider": "antigravity",
+      "id": "gpt-oss-120b-medium",
+      "label": "GPT-OSS 120B Medium",
+      "options": {
+        "thinking_level": "medium"
+      },
+      "ranks": {
+        "mechanical": 17,
+        "verification": 11
+      },
+      "basis": "coding 22.3"
+    },
+    {
+      "provider": "acpRegistry_mistral_vibe",
+      "id": "mistral-medium-3.5",
+      "label": "Mistral Medium 3.5",
+      "options": {
+        "thinking": "high"
+      },
+      "ranks": {
+        "mechanical": 18,
+        "verification": 12
+      },
+      "basis": "coding 21.7"
+    },
+    {
+      "provider": "acpRegistry_cline",
+      "id": "nvidia/nemotron-3.5-lightning:free",
+      "label": "Nemotron 3.5 Lightning",
+      "options": {
+        "mode": "act"
+      },
+      "ranks": {
+        "verification": 13
+      },
+      "basis": "coding 18.5"
+    },
+    {
+      "provider": "opencode",
+      "id": "opencode/big-pickle",
+      "label": "Big Pickle",
+      "options": {},
+      "ranks": {
+        "mechanical": 19,
+        "verification": 14
+      },
+      "basis": "unscored"
+    },
+    {
+      "provider": "opencode",
+      "id": "opencode/iceman-free",
+      "label": "Iceman",
+      "options": {},
+      "ranks": {
+        "mechanical": 20,
+        "verification": 15
+      },
+      "basis": "unscored"
+    },
+    {
+      "provider": "opencode",
+      "id": "opencode/flint-40b-free",
+      "label": "Flint 40B",
+      "options": {
+        "variant": "medium"
+      },
+      "ranks": {
+        "verification": 16
+      },
+      "basis": "unscored"
+    },
+    {
+      "provider": "acpRegistry_cline",
+      "id": "cohere/north-mini-code:free",
+      "label": "North Mini Code",
+      "options": {
+        "mode": "act"
+      },
+      "ranks": {
+        "verification": 17
+      },
+      "basis": "unscored"
+    },
+    {
+      "provider": "acpRegistry_cline",
+      "id": "recursive/flint-v1.0:free",
+      "label": "Flint v1.0",
+      "options": {
+        "mode": "act"
+      },
+      "ranks": {
+        "verification": 18
+      },
+      "basis": "unscored"
+    },
+    {
+      "provider": "acpRegistry_cline",
+      "id": "xingchen-agi/xing4.0-29b-a4b:free",
+      "label": "Xing 4.0 29B A4B",
+      "options": {
+        "mode": "act"
+      },
+      "ranks": {
+        "verification": 19
+      },
+      "basis": "unscored"
+    },
+    {
+      "provider": "codex",
+      "id": "gpt-6-sol",
+      "label": "GPT-6 Sol",
+      "options": {
+        "reasoningEffort": "medium"
+      },
+      "ranks": {
+        "high-risk": 1,
+        "ordinary": 1
+      },
+      "basis": "fallback"
+    },
+    {
+      "provider": "codex",
+      "id": "gpt-6-luna",
+      "label": "GPT-6 Luna",
+      "options": {
+        "reasoningEffort": "medium"
+      },
+      "ranks": {
+        "mechanical": 1,
+        "verification": 1
+      },
+      "basis": "fallback"
+    },
+    {
+      "provider": "claudeAgent",
+      "id": "claude-sonnet-5-5",
+      "label": "Claude Sonnet 5.5",
+      "options": {
+        "effort": "medium"
+      },
+      "ranks": {
+        "high-risk": 1,
+        "ordinary": 1,
+        "mechanical": 1
+      },
+      "basis": "fallback"
+    },
+    {
+      "provider": "claudeAgent",
+      "id": "claude-haiku-5-5",
+      "label": "Claude Haiku 5.5",
+      "options": {
+        "effort": "medium"
+      },
+      "ranks": {
+        "verification": 1
+      },
+      "basis": "fallback"
+    }
+  ]
+}
