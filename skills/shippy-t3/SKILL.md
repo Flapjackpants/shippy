@@ -1,17 +1,17 @@
 ---
 name: shippy-t3
-description: Plan and build code changes in T3 with Claude Opus or GPT-6 Astra orchestration, free Antigravity and OpenCode implementation and verification agents, and Sol/Luna then Claude fallback. Use when the user invokes shippy-t3 or $shippy-t3, or requests the T3 shippy workflow with a Claude, ChatGPT or Astra orchestrator.
+description: Plan and build code changes in T3 with a Claude Opus, GPT-6 Astra or Gemini 3.8 Flash orchestrator and free workers from every connected T3 provider, ranked per task, with configurable fallbacks. Use when the user invokes shippy-t3 or $shippy-t3, asks to configure its providers, or requests the T3 shippy workflow.
 ---
 
 # Shippy for T3
 
-The orchestrator (Claude Opus or GPT-6 Astra) investigates, designs the roadmap, writes stage specs and assesses the final result. Free Antigravity and OpenCode agents build stages and run verification commands, best model first per task. Codex, then Claude, workers take over only after a task's free routes have confirmed provider failures. This variant is unbenchmarked; do not promise savings or equivalent quality.
+The orchestrator (Claude Opus, GPT-6 Astra or Gemini 3.8 Flash) investigates, designs the roadmap, writes stage specs and assesses the final result. Free workers from the user's T3 providers build stages and run verification commands, best model first per task. Fallback workers take over only after a task's free routes have confirmed provider failures. This variant is unbenchmarked; do not promise savings or equivalent quality.
 
 ## Runtime and model contract
 
-- Preferred orchestrator: a Claude Opus (`claude-opus-5-5`) or GPT-6 Astra (`gpt-6-astra`) main session. A skill cannot switch the active session. If invoked under another model, explain that mismatch before execution and ask whether to continue with that orchestrator or let the user select Opus or Astra. Never silently add a second planning layer or create a new top-level thread.
-- Worker routing is defined in [references/provider-routing.md](references/provider-routing.md). Read it before planning dispatches. Use free Antigravity and OpenCode models, in the per-category order there, for implementation, mechanical stages and command verification. These are task categories, not claims that a free model equals Sonnet, Sol or Luna in quality.
-- Fallback chain after the free routes fail: `gpt-6-sol` at medium for ordinary/high-risk implementation and `gpt-6-luna` at medium for mechanical stages and command verification; then, as the last line, Sonnet medium for implementation and Haiku medium for command verification.
+- Preferred orchestrator: a Claude Opus (`claude-opus-5-5`), GPT-6 Astra (`gpt-6-astra`) or Antigravity Gemini 3.8 Flash (`gemini-3.8-flash`, free) main session. A skill cannot switch the active session. If invoked under another model, explain that mismatch before execution and ask whether to continue with that orchestrator or let the user select one of these. Never silently add a second planning layer or create a new top-level thread.
+- If invoked with `configure`, tell the user to run `python3 <absolute skill directory>/scripts/configure.py` in a terminal to set connected providers and fallbacks, then stop.
+- Worker routing rules are in [references/provider-routing.md](references/provider-routing.md); read it and the routes file it names before planning dispatches. Categories are task assignments, not claims that a free model equals a paid one in quality.
 - Running tests is not an independent correctness review: the orchestrator assesses whether the implementation satisfies requirements and whether checks cover changed contracts. High-risk work needs smaller stages and explicit contracts, regardless of executor.
 - Before the first dispatch, call T3 `orchestrator_capabilities` once per thread. Reuse its result; repeat only after an error or user-named provider change. Resolve exact provider/model IDs and supported options. A disabled or unavailable provider skips its routes; it is a blocker only when no route or chain step is available. Do not substitute models beyond the recorded routing policy.
 - Requires T3 `delegate_task`, repository access and command execution. If unavailable, report the missing capability; do not fall back to native agents, Workflow or a CLI. A downloaded skill does not enable T3 or provider authentication.
