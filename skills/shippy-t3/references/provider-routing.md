@@ -27,7 +27,7 @@ Invocation authorizes the chain after a provider failure unless the user request
 - First, Codex: `gpt-6-sol` with `target.options: {"reasoningEffort":"medium"}` for ordinary/high-risk implementation; `gpt-6-luna` with the same effort for mechanical work and command verification.
 - Last, Claude: `claude-sonnet-5-5` with `target.options: {"effort":"medium"}` for implementation (including mechanical work); `claude-haiku-5-5` with the same effort for command verification.
 
-Resolve provider IDs from capabilities. Preserve these exact generations unless the user chooses another. ChatGPT/Codex or Claude fallback uses that provider's configured subscription/API allowance and may incur cost; do not claim it is free. The Opus orchestrator continues consuming its own allowance throughout.
+Resolve provider IDs from capabilities. Preserve these exact generations unless the user chooses another. ChatGPT/Codex or Claude fallback uses that provider's configured subscription/API allowance and may incur cost; do not claim it is free. The orchestrator continues consuming its own allowance throughout.
 
 ## When switching is allowed
 

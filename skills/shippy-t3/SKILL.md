@@ -1,18 +1,18 @@
 ---
 name: shippy-t3
-description: Plan and build code changes in T3 with Claude Opus orchestration, free OpenCode implementation and verification agents, and Sol/Luna then Claude fallback. Use when the user invokes shippy-t3 or requests the hybrid Claude/OpenAI shippy workflow.
+description: Plan and build code changes in T3 with Claude Opus or GPT-6 Astra orchestration, free OpenCode implementation and verification agents, and Sol/Luna then Claude fallback. Use when the user invokes shippy-t3 or $shippy-t3, or requests the T3 shippy workflow with a Claude, ChatGPT or Astra orchestrator.
 ---
 
 # Shippy for T3
 
-Claude Opus investigates, designs the roadmap, writes stage specs and assesses the final result. Free OpenCode agents build stages and run verification commands. Codex, then Claude, workers take over only after a confirmed OpenCode provider failure. This variant is unbenchmarked; do not promise savings or equivalent quality.
+The orchestrator (Claude Opus or GPT-6 Astra) investigates, designs the roadmap, writes stage specs and assesses the final result. Free OpenCode agents build stages and run verification commands. Codex, then Claude, workers take over only after a confirmed OpenCode provider failure. This variant is unbenchmarked; do not promise savings or equivalent quality.
 
 ## Runtime and model contract
 
-- Preferred orchestrator: a Claude Opus main session (`claude-opus-5-5`). A skill cannot switch the active session. If invoked under another model, explain that mismatch before execution and ask whether to continue with that orchestrator or let the user select Opus. Never silently add a second planning layer or create a new top-level thread.
+- Preferred orchestrator: a Claude Opus (`claude-opus-5-5`) or GPT-6 Astra (`gpt-6-astra`) main session. A skill cannot switch the active session. If invoked under another model, explain that mismatch before execution and ask whether to continue with that orchestrator or let the user select Opus or Astra. Never silently add a second planning layer or create a new top-level thread.
 - Worker routing is defined in [references/provider-routing.md](references/provider-routing.md). Read it before planning dispatches. Use free OpenCode models for ordinary implementation, mechanical stages and command verification. These are task categories, not claims that a free model equals Sonnet, Sol or Luna in quality.
 - Fallback chain after a provider failure: `gpt-6-sol` at medium for ordinary/high-risk implementation and `gpt-6-luna` at medium for mechanical stages and command verification; then, as the last line, Sonnet medium for implementation and Haiku medium for command verification.
-- Running tests is not an independent correctness review: Claude assesses whether the implementation satisfies requirements and whether checks cover changed contracts. High-risk work needs smaller stages and explicit contracts, regardless of executor.
+- Running tests is not an independent correctness review: the orchestrator assesses whether the implementation satisfies requirements and whether checks cover changed contracts. High-risk work needs smaller stages and explicit contracts, regardless of executor.
 - Before the first dispatch, call T3 `orchestrator_capabilities` once per thread. Reuse its result; repeat only after an error or user-named provider change. Resolve exact provider/model IDs and supported options. A disabled or unavailable OpenCode provider starts the fallback chain; it is a blocker only when no chain step is available. Do not substitute models beyond the recorded routing policy.
 - Requires T3 `delegate_task`, repository access and command execution. If unavailable, report the missing capability; do not fall back to native agents, Workflow or a CLI. A downloaded skill does not enable T3 or provider authentication.
 - Explicitly delegate each implementation stage and baseline/final verification through T3. Run stages sequentially with `isolation: shared`; never run two writers together. Children must not delegate.
@@ -89,6 +89,6 @@ Use the routing policy for each task category. An empty `target.options` clears 
 
 ## Finish
 
-Claude compares the changed contracts and targeted diffs with the original goal, checking test adequacy and unresolved deviations. Keep this assessment distinct from the command verifier's results. Address a discovered defect through a bounded fix stage and re-check the affected behavior; do not call a passing suite proof of correctness.
+The orchestrator compares the changed contracts and targeted diffs with the original goal, checking test adequacy and unresolved deviations. Keep this assessment distinct from the command verifier's results. Address a discovered defect through a bounded fix stage and re-check the affected behavior; do not call a passing suite proof of correctness.
 
 Report what changed, verification results and limitations, actual worker models and any provider-failure fallback evidence, deviations, local commits (if any) and remaining blockers. Provide a ready-to-paste PR title/body when useful, following the repository template. Distinguish checks actually run from checks unavailable or skipped. State that commits remain unpushed and the plan stays untracked. Do not push, publish or open a PR unless requested.
