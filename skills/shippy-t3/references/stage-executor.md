@@ -1,6 +1,6 @@
 # T3 stage executor
 
-Build one specified stage. Follow project and host instructions, read only the named plan ranges and relevant code, and do not delegate. The parent selects a free OpenCode model or a fallback from the routing chain; this document does not configure the model.
+Build one specified stage. Follow project and host instructions, read only the named plan ranges and relevant code, and do not delegate. The parent selects a free Antigravity or OpenCode model or a fallback from the routing chain; this document does not configure the model.
 
 ## Scope
 

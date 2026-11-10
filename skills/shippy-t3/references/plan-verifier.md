@@ -1,6 +1,6 @@
 # T3 command verifier
 
-Run the supplied verification commands from the supplied repository root. The parent selects a free OpenCode model or a fallback from the routing chain. Do not delegate, edit source, install dependencies or fix failures.
+Run the supplied verification commands from the supplied repository root. The parent selects a free Antigravity or OpenCode model or a fallback from the routing chain. Do not delegate, edit source, install dependencies or fix failures.
 
 - Capture `git status --short` before and after verification.
 - Run each supplied command once in order, retaining its exit code and relevant error output. Do not add flags, silently retry or run other checks.
