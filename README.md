@@ -2,7 +2,7 @@
 
 A family of skills for a plan-then-build pipeline: the orchestrator plans, focused agents build, and every agent carries only what it needs. Choose the Claude, ChatGPT / Codex, or a T3 hybrid version below.
 
-**Status:** v0.5.0. Designed and written, but not yet benchmarked or run end to end, so the savings are a hypothesis until measured. The benchmark plan is in [HANDOFF.md](HANDOFF.md).
+**Status:** v0.5.0. Designed and written, but not yet benchmarked or run end to end, so the savings are a hypothesis until measured.
 
 ## Install
 
@@ -33,6 +33,13 @@ Restart Claude Code afterwards.
 
 The separate [shippy-chatgpt skill](skills/shippy-chatgpt/SKILL.md) uses **GPT-6 Astra as the session orchestrator** and **GPT-6 Sol at medium reasoning** for ordinary implementation stages, and **GPT-6 Luna at medium reasoning** for mechanical stages and command verification. Astra assesses final correctness and test adequacy. The Claude version is unchanged. This port has passed structural validation but has not been run end to end or benchmarked.
 
+| Role | Model |
+|---|---|
+| Roadmap, stage specs and final assessment | Session, normally GPT-6 Astra |
+| Default stages | GPT-6 Sol, medium reasoning |
+| Mechanical stages | GPT-6 Luna, medium reasoning |
+| Baseline and final test runs | GPT-6 Luna, medium reasoning |
+
 Install without cloning: download the self-contained skill directly into Codex's user skill directory. Re-run this command to update it after changes are published to `main`:
 
 ```bash
@@ -53,15 +60,23 @@ The host must expose repository tools and subagent model/reasoning controls. The
 
 The port asks clarifying questions with recommendations, gets your approval of the plan, commits each stage by default (no commits only if you or the repository's rules forbid them), and never silently substitutes a different builder model.
 
-### T3 hybrid: Claude + free OpenCode workers (experimental)
+### T3 hybrid: free Antigravity and OpenCode workers (experimental)
 
-The self-contained [shippy-t3 skill](skills/shippy-t3/SKILL.md) uses **Claude Opus as the main orchestrator** and **free OpenCode models** for implementation and command verification. It prefers DeepSeek V4.1 Flash Free for ordinary stages and GLM-5.3-Flash Free for mechanical work and verification. It dispatches them directly and does not check pricing before a run. These are task assignments, not claims of equivalence to Sonnet, Sol or Luna. Claude assesses the final result. This workflow has not yet been benchmarked or run end to end.
+The self-contained [shippy-t3 skill](skills/shippy-t3/SKILL.md) runs under either a **Claude Opus** or a **GPT-6 Astra** main session in T3. The session plans, writes stage specs and assesses the final result. Free **Antigravity** and **OpenCode** models build stages and run verification commands, best model first for each kind of task. It dispatches them directly and does not check pricing before a run. The order comes from third-party coding benchmarks, not shippy benchmarks; these are task assignments, not claims of equivalence to Sonnet, Sol or Luna. This workflow has not yet been benchmarked or run end to end.
 
-If an OpenCode model fails at the provider level, it tries the other free model, then **Sol medium** for ordinary implementation or **Luna medium** for mechanical work and verification, then as the last line **Sonnet medium** for implementation or **Haiku medium** for command verification. Say `free-only` to disable paid fallback. Fallback uses each provider's configured subscription/API allowance; the Opus planner still consumes its own allowance.
+| Role | Free models, best first | Paid fallback |
+|---|---|---|
+| Roadmap, stage specs and final assessment | Session: Claude Opus or GPT-6 Astra | none |
+| High-risk stages (concurrency, auth, crypto, migrations, hard debugging) | DeepSeek V4.1 Flash (OpenCode), Gemini 3.8 Flash (Antigravity), Claude Opus 4.6 (Antigravity) | Sol medium, then Sonnet medium |
+| Ordinary stages | Gemini 3.8 Flash (Antigravity), DeepSeek V4.1 Flash (OpenCode), Claude Sonnet 4.6 (Antigravity) | Sol medium, then Sonnet medium |
+| Mechanical stages | GLM-5.3-Flash (OpenCode), Claude Sonnet 4.6 (Antigravity), Gemini 3.8 Flash (Antigravity) | Luna medium, then Sonnet medium |
+| Baseline and final test runs | GPT-OSS 120B (Antigravity), GLM-5.3-Flash (OpenCode), Gemini 3.8 Flash (Antigravity) | Luna medium, then Haiku medium |
+
+Antigravity models run at medium `thinking_level`. Fallback follows quota pools: Antigravity reports separate Gemini, Claude (shared by Opus 4.6 and Sonnet 4.6) and GPT pools, and each OpenCode model counts as its own pool unless an error names the account. When a pool runs out, the skill skips every model in it and moves to the task's next free model; a model-specific failure skips only that model. Codex and then Claude take over only after all of a task's free models have failed. Say `free-only` to disable paid fallback. Fallback uses each provider's configured subscription/API allowance; the planner still consumes its own allowance.
 
 Provider failures are quota exhaustion, missing or expired models, authentication errors, disabled providers, and rate-limit, overload or network errors that persist after one retry. Failed tests and weak output do not trigger fallback. Because the skill does not check prices, an ended promotion could bill any OpenCode credit before a failure appears. The skill preserves partial work and stops the old worker before replacing it. See [routing and recovery rules](skills/shippy-t3/references/provider-routing.md).
 
-Install it for T3's Claude provider, without cloning:
+Install it without cloning. For T3's Claude provider:
 
 ```bash
 mkdir -p ~/.claude/skills
@@ -71,37 +86,27 @@ mkdir -p ~/.claude/skills
 )
 ```
 
-In T3, select Claude Opus for the main session and invoke:
-
-```text
-/shippy-t3 add rate limiting to the public API
-```
-
-T3 needs Claude and OpenCode enabled, plus Codex and Claude when fallback is needed. Install OpenCode using `npm install -g @opencode/cli`, enable it in **Settings → Providers**, and refresh provider status. Free models must appear in its catalog; authenticate fallback providers separately. The skill checks capabilities and uses `delegate_task` for cross-provider execution, passing only supported reasoning options. It does not require other shippy variants or Claude agent files. Installing it in plain Claude Code does not add T3's tools.
-
-As of November 2, 2026, [OpenCode's free-model page](https://opencode.ai/v2/docs/console/models/#free-models) gives no fixed request/token allowance or end date for these DeepSeek/GLM promotions. Free access is not a guaranteed unlimited quota. The published limits for the separate paid [OpenCode Go subscription](https://opencode.ai/v2/docs/console/go/) do not establish the free offers' allowances.
-
-### T3 hybrid: Astra + free OpenCode workers (experimental)
-
-The self-contained [shippy-t3-chatgpt skill](skills/shippy-t3-chatgpt/SKILL.md) is the same workflow as shippy-t3 with **GPT-6 Astra as the main orchestrator**. Astra plans, writes stage specs and assesses the final result. Workers, the fallback chain and recovery follow the same [routing rules](skills/shippy-t3-chatgpt/references/provider-routing.md), and the free-model caveats above apply. The Astra planner consumes its own allowance. This workflow has not been benchmarked or run end to end.
-
-Install it for T3's Codex provider, without cloning:
+For T3's Codex provider:
 
 ```bash
 mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills"
 (set -o pipefail
   curl -fsSL https://github.com/Flapjackpants/shippy/archive/refs/heads/main.tar.gz \
-    | tar -xz -C "${CODEX_HOME:-$HOME/.codex}/skills" --strip-components=2 shippy-main/skills/shippy-t3-chatgpt
+    | tar -xz -C "${CODEX_HOME:-$HOME/.codex}/skills" --strip-components=2 shippy-main/skills/shippy-t3
 )
 ```
 
-In T3, select GPT-6 Astra for the main session and invoke:
+`shippy-t3` replaces the former `shippy-t3-chatgpt` skill; delete that folder from your Codex skills directory if you installed it.
+
+In T3, select Claude Opus or GPT-6 Astra for the main session and invoke (`$shippy-t3` under Codex):
 
 ```text
-$shippy-t3-chatgpt add rate limiting to the public API
+/shippy-t3 add rate limiting to the public API
 ```
 
-T3 needs Codex and OpenCode enabled, plus Claude for the last fallback step.
+T3 needs the session's provider, Antigravity and OpenCode enabled, plus Codex and Claude when paid fallback is needed. Install OpenCode using `npm install -g @opencode/cli`, connect Antigravity, enable both in **Settings → Providers**, and refresh provider status. Free models must appear in their catalogs; authenticate fallback providers separately. The skill checks capabilities and uses `delegate_task` for cross-provider execution, passing only supported reasoning options. It does not require other shippy variants or Claude agent files. Installing it in plain Claude Code does not add T3's tools.
+
+As of November 2, 2026, [OpenCode's free-model page](https://opencode.ai/v2/docs/console/models/#free-models) gives no fixed request/token allowance or end date for these DeepSeek/GLM promotions. Free access is not a guaranteed unlimited quota. The published limits for the separate paid [OpenCode Go subscription](https://opencode.ai/v2/docs/console/go/) do not establish the free offers' allowances. On November 10, 2026, T3's Antigravity quota panel showed each pool's remaining quota and reset time (about seven days for Claude and GPT); the skill decides exhaustion from that and from provider errors.
 
 ## Usage
 
@@ -140,5 +145,3 @@ Every tool call re-reads the agent's whole context, so most of the cost is what 
 - **Short dispatch prompts** that point at line ranges in the plan file instead of retyping the spec.
 - **A Haiku verifier** that keeps long test logs out of the session model's context.
 - **Cheapest adequate model per stage**, chosen by risk.
-
-The reasoning, the research behind it and the rejected alternatives are in [HANDOFF.md](HANDOFF.md).
