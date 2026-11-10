@@ -60,23 +60,66 @@ The host must expose repository tools and subagent model/reasoning controls. The
 
 The port asks clarifying questions with recommendations, gets your approval of the plan, commits each stage by default (no commits only if you or the repository's rules forbid them), and never silently substitutes a different builder model.
 
-### T3 hybrid: free Antigravity and OpenCode workers (experimental)
+### T3 hybrid: free workers from every T3 provider (experimental)
 
-The self-contained [shippy-t3 skill](skills/shippy-t3/SKILL.md) runs under either a **Claude Opus** or a **GPT-6 Astra** main session in T3. The session plans, writes stage specs and assesses the final result. Free **Antigravity** and **OpenCode** models build stages and run verification commands, best model first for each kind of task. It dispatches them directly and does not check pricing before a run. The order comes from third-party coding benchmarks, not shippy benchmarks; these are task assignments, not claims of equivalence to Sonnet, Sol or Luna. This workflow has not yet been benchmarked or run end to end.
+The self-contained [shippy-t3 skill](skills/shippy-t3/SKILL.md) runs under a **Claude Opus**, **GPT-6 Astra** or **Gemini 3.8 Flash** (Antigravity, free) main session in T3. The session plans, writes stage specs and assesses the final result. Free models from every provider you connect to T3 build stages and run verification commands, best model first for each kind of task. A configure tool picks which providers are used and which are fallbacks. It writes a small routes file (about 1.6 KB) that is the only routing data agents read, so connecting more providers does not make a run more expensive. The ranking comes from third-party benchmarks, not shippy benchmarks; this workflow has not been benchmarked or run end to end.
 
-| Role | Free models, best first | Paid fallback |
+Default routes, used until you run the configure tool:
+
+| Task | Free models, best first | Fallbacks |
 |---|---|---|
-| Roadmap, stage specs and final assessment | Session: Claude Opus or GPT-6 Astra | none |
-| High-risk stages (concurrency, auth, crypto, migrations, hard debugging) | DeepSeek V4.1 Flash (OpenCode), Gemini 3.8 Flash (Antigravity), Claude Opus 4.6 (Antigravity) | Sol medium, then Sonnet medium |
-| Ordinary stages | Gemini 3.8 Flash (Antigravity), DeepSeek V4.1 Flash (OpenCode), Claude Sonnet 4.6 (Antigravity) | Sol medium, then Sonnet medium |
-| Mechanical stages | GLM-5.3-Flash (OpenCode), Claude Sonnet 4.6 (Antigravity), Gemini 3.8 Flash (Antigravity) | Luna medium, then Sonnet medium |
-| Baseline and final test runs | GPT-OSS 120B (Antigravity), GLM-5.3-Flash (OpenCode), Gemini 3.8 Flash (Antigravity) | Luna medium, then Haiku medium |
+| High-risk (concurrency, auth, crypto, migrations, hard debugging) | DeepSeek V4.1 Flash (OpenCode), Gemini 3.8 Flash (Antigravity), Inkling 2 Small (OpenCode), MiMo V2.6 Flash (OpenCode) | Sol medium, then Sonnet medium |
+| Ordinary stages | Gemini 3.8 Flash, DeepSeek V4.1 Flash, Inkling 2 Small, MiMo V2.6 Flash | Sol medium, then Sonnet medium |
+| Mechanical stages | GLM-5.3-Flash, MiMo V2.6 Flash, LongCat 2.5, Inkling 2 Small (all OpenCode) | Luna medium, then Sonnet medium |
+| Baseline and final test runs | Kilo Auto Free (Kilo), GLM-5.3-Flash, MiMo V2.6 Flash, LongCat 2.5 | Luna medium, then Haiku medium |
 
-Antigravity models run at medium `thinking_level`. Fallback follows quota pools: Antigravity reports separate Gemini, Claude (shared by Opus 4.6 and Sonnet 4.6) and GPT pools, and each OpenCode model counts as its own pool unless an error names the account. When a pool runs out, the skill skips every model in it and moves to the task's next free model; a model-specific failure skips only that model. Codex and then Claude take over only after all of a task's free models have failed. Say `free-only` to disable paid fallback. Fallback uses each provider's configured subscription/API allowance; the planner still consumes its own allowance.
+<details>
+<summary>Full ranking of free models (lower is better; "limited" means a small or unclear free allowance)</summary>
 
-Provider failures are quota exhaustion, missing or expired models, authentication errors, disabled providers, and rate-limit, overload or network errors that persist after one retry. Failed tests and weak output do not trigger fallback. Because the skill does not check prices, an ended promotion could bill any OpenCode credit before a failure appears. The skill preserves partial work and stops the old worker before replacing it. See [routing and recovery rules](skills/shippy-t3/references/provider-routing.md).
+Scores are BenchLM coding/agentic scores and benchmarks read on November 10, 2026 ([coding leaderboard](https://benchlm.ai/md/coding.md)); third-party and unverified. Unscored models rank last.
 
-Install it without cloning. For T3's Claude provider:
+| Model | Provider | High-risk | Ordinary | Mechanical | Verification | Basis |
+|---|---|---|---|---|---|---|
+| Kimi K3.1 Pro | Kimi Code (limited) | 1 | 3 | - | - | DeepSWE 75.5, overall 74.6 |
+| DeepSeek V4.1 Flash | OpenCode | 2 | 4 | 8 | - | coding 63.2 |
+| Gemini 3.8 Flash | Antigravity | 3 | 1 | 9 | 8 | coding 60, agentic 64.7 |
+| Inkling 2 Small | OpenCode | 4 | 5 | 4 | 5 | coding 59.2, agentic 59.9 |
+| Kimi K3 | Kimi Code (limited) | 5 | 2 | - | - | coding 58.9, agentic 66.7 |
+| MiMo V2.6 Flash | OpenCode | 6 | 6 | 2 | 3 | coding 56.4 |
+| LongCat 2.5 | OpenCode | 7 | 7 | 3 | 4 | DeepSWE 64.6, TB2.1 88.4 |
+| SWE-2 Flash | Devin (limited) | 8 | 8 | - | - | DeepSWE 60.1, TB2.1 89.2 |
+| Claude Opus 4.6 Thinking | Antigravity | 9 | - | - | - | coding 46.4 |
+| GLM-5.3-Flash | OpenCode | 10 | 9 | 1 | 2 | coding 48.5, agentic 58.3 |
+| Claude Sonnet 4.6 | Antigravity | 11 | 10 | 5 | - | coding 45.1 |
+| Kilo Auto Free | Kilo | 12 | 11 | 6 | 1 | router, 200 requests/hour; unscored |
+| Inkling Small | Cline | 13 | 12 | 7 | 6 | coding 37.2 |
+| Inkling | Cline | - | 13 | 10 | 7 | coding 33.7 |
+| Auto (default) | Qoder CLI (limited) | - | 14 | 12 | - | unscored |
+| Auto (default) | Kiro CLI (limited) | - | 15 | 13 | - | unscored |
+| Default | Junie (limited) | - | 16 | 14 | - | unscored |
+| Auto (default) | GitHub Copilot (limited) | - | 17 | 15 | - | unscored |
+| Beam | OpenCode | - | - | 11 | 9 | coding 30.8 |
+| Nemotron 3.5 Super VL | Cline | - | - | 16 | 10 | SWE-bench Verified 71.1 |
+| GPT-OSS 120B | Antigravity | - | - | 17 | 11 | coding 22.3 |
+| Mistral Medium 3.5 | Mistral Vibe (limited) | - | - | 18 | 12 | coding 21.7 |
+| Nemotron 3.5 Lightning | Cline | - | - | - | 13 | coding 18.5 |
+| Big Pickle | OpenCode | - | - | 19 | 14 | unscored |
+| Iceman | OpenCode | - | - | 20 | 15 | unscored |
+| Flint 40B | OpenCode | - | - | - | 16 | unscored |
+| North Mini Code | Cline | - | - | - | 17 | unscored |
+| Flint v1.0 | Cline | - | - | - | 18 | unscored |
+| Xing 4.0 29B A4B | Cline | - | - | - | 19 | unscored |
+
+Left out: LiquidAI LFM 2.6B/1.7B (too small for agentic coding), Kilo's individual `:free` models (Kilo uses only `kilo/kilo-auto/free`) and Cline's paid models.
+</details>
+
+Fallback follows quota pools. Antigravity reports separate Gemini, Claude (shared by Opus 4.6 and Sonnet 4.6) and GPT pools; Kilo, Kimi Code, Devin, Qoder, Kiro, Junie, Copilot and Mistral Vibe each count as one pool; any other model is its own pool unless an error names the account. When a pool runs out, the skill skips every model in it and moves to the task's next free model; a model-specific failure skips only that model. Your fallbacks take over, in order, only after all of a task's free models have failed. Say `free-only` to disable fallbacks for a run. Paid fallbacks use each provider's subscription/API allowance; the planner always consumes its own allowance.
+
+Provider failures are quota exhaustion, missing or expired models, authentication errors, disabled providers, and rate-limit, overload or network errors that persist after one retry. Failed tests and weak output do not trigger fallback. Because the skill does not check prices, an ended promotion could bill credit before a failure appears. The skill preserves partial work and stops the old worker before replacing it. See [routing and recovery rules](skills/shippy-t3/references/provider-routing.md).
+
+#### Install the skill
+
+Install without cloning into the skills directory of each host you plan to use as the main session. For T3's Claude provider:
 
 ```bash
 mkdir -p ~/.claude/skills
@@ -96,17 +139,61 @@ mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills"
 )
 ```
 
-`shippy-t3` replaces the former `shippy-t3-chatgpt` skill; delete that folder from your Codex skills directory if you installed it.
+For T3's Antigravity provider (Gemini):
 
-In T3, select Claude Opus or GPT-6 Astra for the main session and invoke (`$shippy-t3` under Codex):
-
-```text
-/shippy-t3 add rate limiting to the public API
+```bash
+mkdir -p ~/.gemini/config/skills
+(set -o pipefail
+  curl -fsSL https://github.com/Flapjackpants/shippy/archive/refs/heads/main.tar.gz \
+    | tar -xz -C ~/.gemini/config/skills --strip-components=2 shippy-main/skills/shippy-t3
+)
 ```
 
-T3 needs the session's provider, Antigravity and OpenCode enabled, plus Codex and Claude when paid fallback is needed. Install OpenCode using `npm install -g @opencode/cli`, connect Antigravity, enable both in **Settings → Providers**, and refresh provider status. Free models must appear in their catalogs; authenticate fallback providers separately. The skill checks capabilities and uses `delegate_task` for cross-provider execution, passing only supported reasoning options. It does not require other shippy variants or Claude agent files. Installing it in plain Claude Code does not add T3's tools.
+Antigravity also scans `~/.gemini/antigravity-cli/skills` and the legacy `~/.gemini/antigravity/skills`; the standalone Gemini CLI uses `~/.gemini/skills`. `shippy-t3` replaces the former `shippy-t3-chatgpt` skill; delete that folder if you installed it.
 
-As of November 2, 2026, [OpenCode's free-model page](https://opencode.ai/v2/docs/console/models/#free-models) gives no fixed request/token allowance or end date for these DeepSeek/GLM promotions. Free access is not a guaranteed unlimited quota. The published limits for the separate paid [OpenCode Go subscription](https://opencode.ai/v2/docs/console/go/) do not establish the free offers' allowances. On November 10, 2026, T3's Antigravity quota panel showed each pool's remaining quota and reset time (about seven days for Claude and GPT); the skill decides exhaustion from that and from provider errors.
+In T3, select Claude Opus, GPT-6 Astra or Antigravity's Gemini 3.8 Flash for the main session and invoke `/shippy-t3 add rate limiting to the public API` (`$shippy-t3` under Codex; under Antigravity, ask for the `shippy-t3` skill by name). The skill checks T3's capabilities on every run, so a provider that is off or signed out is skipped. Installing it in plain Claude Code does not add T3's tools.
+
+#### Choose providers and fallbacks
+
+Run the configure tool in a terminal (or run `/shippy-t3 configure` to have the session print this command):
+
+```bash
+python3 ~/.claude/skills/shippy-t3/scripts/configure.py
+```
+
+Use the copy in whichever skills directory you installed. The tool lists every provider with its tier and free allowance. Type a provider's number to cycle it between **route** (its free models join the ranking), **fallback** (used in order after the free models fail) and **off**; `u <n>` moves a fallback earlier, `k <1-8>` sets how many free models each task tries, `p` previews the routes, `s` saves and `q` quits. It saves `~/.config/shippy/t3.json` and `~/.config/shippy/t3-routes.md`, shared by every install. `--print` previews without saving and `--defaults` restores the defaults: Antigravity, OpenCode, Kilo and Cline as routes, Codex then Claude as fallbacks, and the limited providers off. Python 3 with no extra packages is required.
+
+#### Fully free setup
+
+1. Install the skill for Antigravity (above) and connect the free providers (below).
+2. Run the configure tool, set Codex and Claude to **off** (or replace them with free providers as fallbacks), optionally turn on limited providers, and save.
+3. In T3, start a session on Antigravity's Gemini 3.8 Flash and invoke the skill.
+
+The planner then draws on the Antigravity Gemini pool that Gemini workers also use. Free tiers can change or end at any time, so "free" holds only while each provider keeps offering it.
+
+#### Installing providers in T3 Code
+
+1. Open T3 Code's **Settings → Providers**. Claude, Codex, OpenCode and Antigravity are built in; the other agents install from the ACP registry list there. T3 downloads each agent into `~/.t3/tools/<name>/<version>`, so it does not need to be on your `PATH`.
+2. Turn the provider's toggle on.
+3. Sign in using T3's prompt for that provider, or the vendor sign-in below. Credentials are normally kept in your home directory, so a sign-in from the vendor's standalone CLI also counts.
+4. Refresh provider status until it shows **Authenticated** (or **Available**), then rerun the configure tool to set its role.
+
+| Provider | Sign in | Models shippy uses | Free allowance (as reported, Nov 2026) |
+|---|---|---|---|
+| Antigravity | Google account in Antigravity | Gemini 3.8 Flash, Claude Opus/Sonnet 4.6, GPT-OSS 120B | Separate Gemini, Claude and GPT pools; T3's quota panel shows each reset time (about 7 days for Claude and GPT) |
+| OpenCode | Built in; free models need no sign-in | DeepSeek, GLM, Inkling 2 Small, MiMo, LongCat and other free models | Promotional; no published allowance |
+| Kilo | Kilo account via T3's sign-in prompt | `kilo/kilo-auto/free` | 200 requests per hour per IP |
+| Cline | `cline auth` | `:free` models | Rate-limited |
+| Kimi Code (limited) | Run `kimi`, then `/setup` | K3.1 Pro, K3 | Plan quota; free tier unclear and may use a paid plan |
+| Devin (limited) | `devin auth login` | SWE-2 Flash | Light free quota; SWE-2 Flash reportedly free until November 30, 2026 |
+| Qoder CLI (limited) | Run `qodercli`, then `/login` | Auto routing | Basic models with daily and monthly limits |
+| Kiro CLI (limited) | `kiro-cli login` | Default (Auto) | 50 credits per month |
+| Junie (limited) | Run `junie` and choose JetBrains account, or set `JUNIE_API_KEY` | Default | 3 AI credits per 30 days |
+| GitHub Copilot (limited) | Run `copilot`, then `/login` | Default (Auto) | Copilot Free: small AI Credits allowance |
+| Mistral Vibe (limited) | Run `vibe` and complete its first-run setup | Mistral Medium 3.5 | Unpublished free Vibe budget |
+| Codex, Claude | Sign in to ChatGPT or Claude | Sol, Luna, Sonnet, Haiku (fallbacks) | Your paid plan or API allowance |
+
+Standalone CLIs, only needed for terminal sign-in: OpenCode `npm install -g opencode-ai`, Kilo `npm install -g @kilocode/cli`, Cline `npm install -g cline`, Kiro `curl -fsSL https://cli.kiro.dev/install | bash`, Qoder `curl -fsSL https://qoder.com/install | bash`, Devin `curl -fsSL https://cli.devin.ai/install.sh | bash`, Mistral Vibe `uv tool install mistral-vibe`, Kimi `uv tool install --python 3.13 kimi-cli`, Copilot `npm install -g @github/copilot`. Free allowances come from vendor docs and third-party reports and change often; check each provider before relying on them. As of November 2, 2026, [OpenCode's free-model page](https://opencode.ai/v2/docs/console/models/#free-models) gives no fixed allowance or end date for its promotions, and the paid [OpenCode Go subscription](https://opencode.ai/v2/docs/console/go/)'s limits do not apply to them. The skill decides exhaustion only from provider errors and reported quota.
 
 ## Usage
 
