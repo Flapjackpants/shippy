@@ -37,6 +37,7 @@ The separate [shippy-chatgpt skill](skills/shippy-chatgpt/SKILL.md) uses **GPT-6
 |---|---|
 | Roadmap, stage specs and final assessment | Session, normally GPT-6 Astra |
 | Default stages | GPT-6 Sol, medium reasoning |
+| Wide code searches during planning | GPT-6 Luna, medium reasoning |
 | Mechanical stages | GPT-6 Luna, medium reasoning |
 | Baseline and final test runs | GPT-6 Luna, medium reasoning |
 
@@ -70,6 +71,7 @@ Default routes, used until you run the configure tool:
 |---|---|---|
 | High-risk (concurrency, auth, crypto, migrations, hard debugging) | DeepSeek V4.1 Flash (OpenCode), Gemini 3.8 Flash (Antigravity), Inkling 2 Small (OpenCode), MiMo V2.6 Flash (OpenCode) | Sol medium, then Sonnet medium |
 | Ordinary stages | Gemini 3.8 Flash, DeepSeek V4.1 Flash, Inkling 2 Small, MiMo V2.6 Flash | Sol medium, then Sonnet medium |
+| Wide code searches during planning | Same as ordinary stages | Same as ordinary stages |
 | Mechanical stages | GLM-5.3-Flash, MiMo V2.6 Flash, LongCat 2.5, Inkling 2 Small (all OpenCode) | Luna medium, then Sonnet medium |
 | Baseline and final test runs | Kilo Auto Free (Kilo), GLM-5.3-Flash, MiMo V2.6 Flash, LongCat 2.5 | Luna medium, then Haiku medium |
 
@@ -218,6 +220,7 @@ Everything else runs in **Full** mode:
 | Role | Agent | Model |
 |---|---|---|
 | Roadmap and stage specs | Session | Your session model, normally Opus |
+| Wide code searches during planning | built-in `Explore` | Haiku |
 | Default stages | `stage-executor` | Sonnet |
 | Purely mechanical stages | `stage-executor` | Haiku |
 | Concurrency, auth, crypto, migrations | `stage-executor` | Opus |
