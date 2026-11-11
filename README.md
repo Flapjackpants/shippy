@@ -120,16 +120,16 @@ Scores are BenchLM coding/agentic scores and benchmarks read on November 10, 202
 | MiMo V2.6 Flash | OpenCode | 6 | 6 | 2 | 3 | coding 56.4 |
 | LongCat 2.5 | OpenCode | 7 | 7 | 3 | 4 | DeepSWE 64.6, TB2.1 88.4 |
 | SWE-2 Flash | Devin (limited) | 8 | 8 | - | - | DeepSWE 60.1, TB2.1 89.2 |
-| Claude Opus 4.6 Thinking | Antigravity | 9 | - | - | - | coding 46.4 |
-| GLM-5.3-Flash | OpenCode | 10 | 9 | 1 | 2 | coding 48.5, agentic 58.3 |
-| Claude Sonnet 4.6 | Antigravity | 11 | 10 | 5 | - | coding 45.1 |
-| Kilo Auto Free | Kilo | 12 | 11 | 6 | 1 | router, 200 requests/hour; unscored |
-| Inkling Small | Cline | 13 | 12 | 7 | 6 | coding 37.2 |
-| Inkling | Cline | - | 13 | 10 | 7 | coding 33.7 |
-| Auto (default) | Qoder CLI (limited) | - | 14 | 12 | - | unscored |
-| Auto (default) | Kiro CLI (limited) | - | 15 | 13 | - | unscored |
-| Default | Junie (limited) | - | 16 | 14 | - | unscored |
-| Auto (default) | GitHub Copilot (limited) | - | 17 | 15 | - | unscored |
+| Claude Opus 4.6 Thinking | Antigravity | 9 | 9 | - | - | coding 48.6 |
+| GLM-5.3-Flash | OpenCode | 10 | 10 | 1 | 2 | coding 48.5, agentic 58.3 |
+| Claude Sonnet 4.6 | Antigravity | 11 | 11 | 5 | - | coding 45.1 |
+| Kilo Auto Free | Kilo | 12 | 12 | 6 | 1 | router, 200 requests/hour; unscored |
+| Inkling Small | Cline | 13 | 13 | 7 | 6 | coding 37.2 |
+| Inkling | Cline | - | 14 | 10 | 7 | coding 33.7 |
+| Auto (default) | Qoder CLI (limited) | - | 15 | 12 | - | unscored |
+| Auto (default) | Kiro CLI (limited) | - | 16 | 13 | - | unscored |
+| Default | Junie (limited) | - | 17 | 14 | - | unscored |
+| Auto (default) | GitHub Copilot (limited) | - | 18 | 15 | - | unscored |
 | Beam | OpenCode | - | - | 11 | 9 | coding 30.8 |
 | Nemotron 3.5 Super VL | Cline | - | - | 16 | 10 | SWE-bench Verified 71.1 |
 | GPT-OSS 120B | Antigravity | - | - | 17 | 11 | coding 22.3 |
