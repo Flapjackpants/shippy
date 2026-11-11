@@ -10,11 +10,10 @@ Routes come from `~/.config/shippy/t3-routes.md` if it exists, otherwise [defaul
 
 `[pool X]` entries share quota pool X; an untagged model is its own pool unless an error names the account. `[limited]` marks a small or unclear free allowance: expect early exhaustion and report any charge.
 
-Send each entry's options as `target.options`; `{}` clears inherited settings. Do not add reasoning keys that capabilities do not expose. For an unlisted model, send the routes file's options unchanged. Include the routes in the plan shown for approval.
+Send each entry's options as `target.options`; `{}` clears inherited settings. Do not add reasoning keys that capabilities do not expose. For an unlisted model, send the routes file's options unchanged. In the plan shown for approval, name only each used category's first available route and first fallback.
 
 Record in Shared context:
-- Free routes: exact provider/model IDs, options and order per category.
-- Fallback chain: exact targets and options for each step, and any step found unavailable.
+- Routes: the routes file path used, and any entry skipped as unavailable with the reason. Do not copy the routes.
 - Failure ledger: affected provider/model/quota pool, evidence, time and reset time if supplied.
 - Stage recovery: files/commits/checks already completed, fix attempts and replacement task IDs.
 
