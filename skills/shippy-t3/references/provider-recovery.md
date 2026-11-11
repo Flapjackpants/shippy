@@ -18,7 +18,7 @@ Next is a lookup: the category's first free route, then fallbacks, whose provide
 
 ## Bounded recovery
 
-Before any replacement, ensure the old task is terminal or cancel it with `task_cancel`; no overlapping writers. Run only `git status --porcelain`; if anything outside the stage's files changed, stop and report. Do not read the diff to recover progress. If the stage already committed, verify its evidence rather than rebuilding it.
+Before any replacement, ensure the old task is terminal or cancel it with `task_cancel`; no overlapping writers. Run only `git status --porcelain` and `git log -1 --oneline`; if anything outside the stage's files changed, stop and report. Do not read the diff to recover progress. If the stage already committed, verify its evidence rather than rebuilding it.
 
 Send a fresh child the stage's original task text unchanged plus a resume block: failure code, stage start HEAD, fix-attempt count, checks passed with exit codes, and "partial edits may exist in owned files: inspect `git status`/`git diff` for them, keep valid work, finish the stage". A paid fallback gets the same delta, not a richer brief. Use at most one attempt per chain step for a recovery.
 
