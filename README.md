@@ -4,11 +4,41 @@ A family of skills for a plan-then-build pipeline: the orchestrator plans, focus
 
 **Status:** v0.5.0. Designed and written, but not yet benchmarked or run end to end, so the savings are a hypothesis until measured.
 
+
+## How it works
+
+Small changes (about 3 files or fewer, one obvious design, no migration or public-API change) run in **Lean** mode: the session model says why the roadmap is optional, asks any blocking questions, shows a short plan and lets you skip the roadmap or ask for one. If you skip it, the session model writes one stage spec, and a fresh sub-agent builds it test-first and makes one commit.
+
+Everything else runs in **Full** mode:
+
+1. **Roadmap.** The session model investigates read-only, settles every design question with you, and writes a staged roadmap. You approve it and choose to confirm each stage or run automatically.
+2. **Stage loop.** Each stage's spec is written just before it is built, with code anchors from the current HEAD, so it can't drift. A fresh sub-agent then writes black-box tests, the implementation and white-box tests, verifies the stage and commits it as one Conventional Commit.
+3. **Rundown.** You get a summary and a ready-to-paste PR description. Nothing is pushed.
+
+## How it saves tokens
+
+Every tool call re-reads the agent's whole context, so most of the cost is what agents carry, not what they write. Shippy keeps that small:
+
+- **Fresh builder per stage**, so one stage's test logs and edits aren't re-read through the next.
+- **Quiet, failures-only test commands**, because test output is a builder's biggest re-read cost.
+- **Short dispatch prompts** that point at line ranges in the plan file instead of retyping the spec.
+- **A Haiku verifier** that keeps long test logs out of the session model's context.
+- **Cheapest adequate model per stage**, chosen by risk.
+
 ## Install
 
-No clone needed for any variant. Commands download the published `main` branch; newly added variants become downloadable after they are pushed there. Re-run a command to update that variant. Restart the host or reload its skills after installing.
+Commands download the published `main` branch; newly added variants become downloadable after they are pushed there. Re-run a command to update that variant. Restart the host or reload its skills after installing.
 
 ### Claude Code
+
+| Role | Agent | Model |
+|---|---|---|
+| Roadmap and stage specs | Session | Your session model, normally Opus |
+| Wide code searches during planning | built-in `Explore` | Haiku |
+| Default stages | `stage-executor` | Sonnet |
+| Purely mechanical stages | `stage-executor` | Haiku |
+| Concurrency, auth, crypto, migrations | `stage-executor` | Opus |
+| Baseline and final test runs | `plan-verifier` | Haiku |
 
 **As a plugin** (updates cleanly):
 
@@ -63,7 +93,7 @@ The port asks clarifying questions with recommendations, gets your approval of t
 
 ### T3 hybrid: free workers from every T3 provider (experimental)
 
-The self-contained [shippy-t3 skill](skills/shippy-t3/SKILL.md) runs under a **Claude Opus**, **GPT-6 Astra** or **Gemini 3.8 Flash** (Antigravity, free) main session in T3. The session plans, writes stage specs and assesses the final result. Free models from every provider you connect to T3 build stages and run verification commands, best model first for each kind of task. A configure tool picks which providers are used and which are fallbacks. It writes a small routes file (about 1.6 KB) that is the only routing data agents read, so connecting more providers does not make a run more expensive. The ranking comes from third-party benchmarks, not shippy benchmarks; this workflow has not been benchmarked or run end to end.
+The self-contained [shippy-t3 skill](skills/shippy-t3/SKILL.md) runs under a **Claude Opus**, **GPT-6 Astra** or **Gemini 3.8 Flash** main session in T3. The session plans, writes stage specs and assesses the final result. Free models from every provider you connect to T3 build stages and run verification commands, best model first for each kind of task. A configure tool picks which providers are used and which are fallbacks. It writes a small routes file (about 1.6 KB) that is the only routing data agents read, so connecting more providers does not make a run more expensive. The ranking comes from third-party benchmarks, not shippy benchmarks; this workflow has not been benchmarked or run end to end.
 
 Default routes, used until you run the configure tool:
 
@@ -206,32 +236,3 @@ The remaining walkthrough describes the original Claude Code variant.
 ```
 
 A plugin install may list it as `/shippy:shippy`. The target must be a git repository, because shippy commits as it builds.
-
-## How it works
-
-Small changes (about 3 files or fewer, one obvious design, no migration or public-API change) run in **Lean** mode: the session model says why the roadmap is optional, asks any blocking questions, shows a short plan and lets you skip the roadmap or ask for one. If you skip it, the session model writes one stage spec, and a fresh sub-agent builds it test-first and makes one commit.
-
-Everything else runs in **Full** mode:
-
-1. **Roadmap.** The session model investigates read-only, settles every design question with you, and writes a staged roadmap. You approve it and choose to confirm each stage or run automatically.
-2. **Stage loop.** Each stage's spec is written just before it is built, with code anchors from the current HEAD, so it can't drift. A fresh sub-agent then writes black-box tests, the implementation and white-box tests, verifies the stage and commits it as one Conventional Commit.
-3. **Rundown.** You get a summary and a ready-to-paste PR description. Nothing is pushed.
-
-| Role | Agent | Model |
-|---|---|---|
-| Roadmap and stage specs | Session | Your session model, normally Opus |
-| Wide code searches during planning | built-in `Explore` | Haiku |
-| Default stages | `stage-executor` | Sonnet |
-| Purely mechanical stages | `stage-executor` | Haiku |
-| Concurrency, auth, crypto, migrations | `stage-executor` | Opus |
-| Baseline and final test runs | `plan-verifier` | Haiku |
-
-## How it saves tokens
-
-Every tool call re-reads the agent's whole context, so most of the cost is what agents carry, not what they write. Shippy keeps that small:
-
-- **Fresh builder per stage**, so one stage's test logs and edits aren't re-read through the next.
-- **Quiet, failures-only test commands**, because test output is a builder's biggest re-read cost.
-- **Short dispatch prompts** that point at line ranges in the plan file instead of retyping the spec.
-- **A Haiku verifier** that keeps long test logs out of the session model's context.
-- **Cheapest adequate model per stage**, chosen by risk.
