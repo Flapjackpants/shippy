@@ -14,7 +14,7 @@ Send each entry's options as `target.options`; `{}` clears inherited settings. D
 
 Record in Shared context:
 - Routes: the routes file path used, and any entry skipped as unavailable with the reason. Do not copy the routes.
-- Failure ledger: affected provider/model/quota pool, evidence, time and reset time if supplied.
+- Failure ledger: one line per failure, `scope (pool/model/provider) | redacted code | reset time | time`.
 - Stage recovery: files/commits/checks already completed, fix attempts and replacement task IDs.
 
 ## Fallback chain
