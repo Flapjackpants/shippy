@@ -1,0 +1,24 @@
+{
+  "id": "rightnow-referral",
+  "repo": "~/Documents/programming/personal/rightnow-ai",
+  "commit": "2c4faa3a3e6396c05c5b086c174df43b54271d19",
+  "size": "medium",
+  "language": "typescript",
+  "task": "Add referral handling to rightnow-ai: create or link a referral lead when an inbound reply points to a colleague or says the lead is the wrong person.\n\nCreate packages/core/src/mail/referral.ts with pure extractReferrals({ text, cc, category, leadEmail, own }) -> { emails: string[]; needsTask: boolean }. It runs only when category is \"WRONG_PERSON\" or the unquoted body contains a referral phrase (cc'ing, copying, please contact, not the right person, left the company). Candidates come from cc plus body addresses within 120 characters of a phrase. Reject addresses outside the lead's company domain (free-mail leads cannot refer), the lead itself, own addresses (case-insensitive), role mailboxes and duplicates; keep at most three. needsTask is true only for WRONG_PERSON with no addresses.\n\nAdd applyReferrals(tx, clock, ws, message, lead, category) there: skip suppressed emails; create a lead with source \"referral\", tags [\"referral\"], labels [], inheriting company/website/industry/country/region/lawful basis/owner, or link an existing lead only when its referredById is null. Do not campaign-enrol referrals. A wrong person with no address gets a task titled \"Find the right contact for this referral\", due in 24 hours for its owner.\n\nAdd referredById and a SetNull self-relation to the Lead model. In packages/core/src/leads/service.ts: getLead includes referredBy {id, email} only for a live same-workspace lead, else null; mergeLeads repoints referrals, avoids self-reference and inherits a safe referrer; gdprDeleteLead clears links to the deleted lead. Call applyReferrals from packages/core/src/mail/stoprules.ts for fresh replies in a savepoint, so failures leave reply handling committed and audit referral.hook_failed.\n\nAdd or update tests for the new behavior.",
+  "hidden_tests": [
+    "packages/core/test/leads.test.ts",
+    "packages/core/test/referral.test.ts",
+    "packages/core/test/stoprules.test.ts"
+  ],
+  "setup": [
+    "cp -cR {repo}/node_modules node_modules",
+    "npm run db:generate"
+  ],
+  "exclude": [],
+  "test_command": "npm run db:generate && npx vitest run packages/core/test/leads.test.ts packages/core/test/referral.test.ts packages/core/test/stoprules.test.ts --reporter=junit --outputFile=.bench-junit/hidden.xml",
+  "suite_command": "npm run db:generate && npx vitest run packages/core --reporter=junit --outputFile=.bench-junit/suite.xml",
+  "junit_globs": [
+    ".bench-junit/*.xml"
+  ],
+  "timeout_min": 15
+}

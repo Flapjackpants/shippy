@@ -1,0 +1,20 @@
+{
+  "id": "stacksquing-groups",
+  "repo": "~/Documents/programming/personal/stackSquing",
+  "commit": "3e0230f9bb642dbc70be4bcf9e3f2a386aac3107",
+  "size": "medium",
+  "language": "java",
+  "task": "Add group-editing helpers and replace support to the stackSquing fabric mod. Packages live under fabric/src/main/java/com/flapjackpants/stacksquing/core/.\n\nCreate GroupEditing.java, a final class with a private constructor and static helpers. parseTerms(String csv) -> List<String> splits on commas, trims, drops blanks and case-insensitive duplicate terms while keeping the first occurrence; null or empty input gives an empty list. joinTerms(List<String>) joins with \", \". validateName(GroupStore store, String originalName, String name) returns the message \"Name cannot be empty.\" for a blank or null name and \"A group named <name> already exists.\" when the trimmed name matches a different existing group; it returns null when valid, and originalName null means a new group. togglePick(GroupStore store, ItemGroup group, String itemName) mutates include/exclude so store.matches(group, itemName) flips: remove an exact case-insensitive include, otherwise add an exact exclude; when not matching, remove an exact exclude and otherwise add the item name to include. itemNames(MaterialList list) returns distinct item names in list order (null gives an empty list). copy(ItemGroup group) returns a deep copy of name, include, exclude, enabled and order.\n\nAdd GroupStore.replaceGroup(String originalName, ItemGroup edited) -> boolean. A null originalName adds a deep copy only when the trimmed name is non-blank and unused. Otherwise it updates the stored group in place: reject a blank name, a missing original, or a rename onto another group; on rename rewrite matching include and exclude terms in every Supergroup; copy the edited lists and flags; save. Return false without mutating on any rejection.\n\nAdd or update tests for the new behavior.",
+  "hidden_tests": [
+    "fabric/src/test/java/com/flapjackpants/stacksquing/core/GroupEditingTest.java",
+    "fabric/src/test/java/com/flapjackpants/stacksquing/core/GroupStoreTest.java"
+  ],
+  "setup": [],
+  "exclude": [],
+  "test_command": "cd fabric && ./gradlew -q test --tests com.flapjackpants.stacksquing.core.GroupEditingTest --tests com.flapjackpants.stacksquing.core.GroupStoreTest",
+  "suite_command": "cd fabric && ./gradlew -q test",
+  "junit_globs": [
+    "fabric/build/test-results/test/*.xml"
+  ],
+  "timeout_min": 20
+}

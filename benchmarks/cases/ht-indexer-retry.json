@@ -1,0 +1,19 @@
+{
+  "id": "ht-indexer-retry",
+  "repo": "~/Documents/programming/personal/Historical_Textures",
+  "commit": "03a966644425bc192bfc9c8f34376c026ab5512d",
+  "size": "small",
+  "language": "java",
+  "task": "Make the Historical Textures wiki indexer resilient to wiki throttling and transient failures.\n\nIn wiki-indexer/src/main/java/dev/historicaltextures/indexer/WikiIndexer.java add a package-private static helper long backoffMillis(int attempt, Optional<String> retryAfter). With no usable Retry-After it returns exponential defaults: 2000 ms for attempt 1, doubling per attempt up to a 60000 ms ceiling (attempt 3 -> 8000, attempt 7 -> 60000). When Retry-After holds non-negative whole seconds it returns seconds * 1000 capped at 120000 ms (for example attempt 1 with \"999\" -> 120000, attempt 2 with \"5\" -> 5000); a blank, negative or non-numeric value falls back to the exponential default (attempt 2 with \"soon\" -> 4000).\n\nUse the helper for both JSON fetches and asset downloads: try at most 5 attempts, retry HTTP 429 and 5xx responses, I/O errors and invalid JSON, honour Retry-After, and keep the existing non-retryable HTTP behaviour. Add a 60-second request timeout and throttle outgoing requests to at least 300 ms apart. Downloads should write to a temporary .part file, move it into place atomically when supported, and clean up failed partial files. The public behaviour of the indexer and its output catalog is unchanged.\n\nAdd or update tests for the new behavior.",
+  "hidden_tests": [
+    "wiki-indexer/src/test/java/dev/historicaltextures/indexer/WikiIndexerHttpTest.java"
+  ],
+  "setup": [],
+  "exclude": [],
+  "test_command": "./gradlew -q :wiki-indexer:test --tests dev.historicaltextures.indexer.WikiIndexerHttpTest",
+  "suite_command": "./gradlew -q :wiki-indexer:test",
+  "junit_globs": [
+    "wiki-indexer/build/test-results/test/*.xml"
+  ],
+  "timeout_min": 20
+}

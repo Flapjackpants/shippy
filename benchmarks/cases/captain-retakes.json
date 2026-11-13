@@ -1,0 +1,23 @@
+{
+  "id": "captain-retakes",
+  "repo": "~/Documents/programming/personal/captain",
+  "commit": "043e883e8edcbf0359a72d712543e900e76efe46",
+  "size": "small",
+  "language": "python",
+  "task": "In the captain transcript editor, add fuzzy retake detection that strikes the first copy of a phrase the speaker restarts, while keeping deliberate parallel clauses and stutters.\n\nCreate src/captain/retakes.py exposing find_retakes(transcript, *, sensitivity=\"balanced\", min_pause=0.35) -> list[list[int]] and a cached helper _words_similar(a: str, b: str) -> bool. find_retakes reads spoken source order, ignores word indices already in transcript.removed, and returns non-overlapping groups of word indices (the false starts) sorted by first index. Support sensitivities \"conservative\", \"balanced\" and \"aggressive\"; an unknown name raises KeyError. A pause of at least min_pause between copies, or a long shared opening, makes detection more willing; chained restarts strike every copy but the last.\n\n_words_similar compares normalized (case-insensitive) words: equality, one being a prefix of the other when the shorter word has at least 3 characters, or an edit distance of at most 1 when the shorter word has at least 4 characters. Empty strings are not similar. Do not strike single-word stutters, digit sequences, or candidates whose first copy contains sentence-ending punctuation other than an ellipsis. The second copy may add words, reword its tail, or follow a filler such as \"um\". Transcript.delete, _norm and _is_content_ngram already exist.\n\nAdd or update tests for the new behavior.",
+  "hidden_tests": [
+    "tests/test_retakes.py"
+  ],
+  "setup": [
+    "ln -s {repo}/.venv .venv"
+  ],
+  "exclude": [
+    ".venv"
+  ],
+  "test_command": "QT_QPA_PLATFORM=offscreen PYTHONPATH=src .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_retakes.py --junitxml .bench-junit/hidden.xml",
+  "suite_command": "QT_QPA_PLATFORM=offscreen PYTHONPATH=src .venv/bin/python -m pytest -q -p no:cacheprovider tests --junitxml .bench-junit/suite.xml",
+  "junit_globs": [
+    ".bench-junit/*.xml"
+  ],
+  "timeout_min": 15
+}

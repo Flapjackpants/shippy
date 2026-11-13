@@ -1,0 +1,23 @@
+{
+  "id": "rightnow-slack",
+  "repo": "~/Documents/programming/personal/rightnow-ai",
+  "commit": "8debc42779fd7e2b2794b38de214b3ad530d7f05",
+  "size": "large",
+  "language": "typescript",
+  "task": "Add Slack incoming-webhook support to rightnow-ai's webhook system.\n\nCreate packages/core/src/webhooks/slack.ts exporting SLACK_URL_MASK = \"https://hooks.slack.com/services/***\", isSlackUrl(url) -> boolean (https, exact host hooks.slack.com, path starting /services/, no userinfo, false on parse errors) and slackText(payload: Record<string, unknown>) -> string. slackText produces mrkdwn lines: \":fire: Interested reply from <email> (<company>)\", \":calendar: Meeting requested by ...\", \":speech_balloon: Reply from ...\", \":warning: Mailbox problem: <account> (<reason>)\", \":hourglass_flowing_sand: Daily quota reached: <account> on <campaign>\", else \"<event_type>: <who or account or workspace>\". Append \" <url|Open in inbox>\" for an http(s) unibox_url and a newline \"> snippet\" (max 200 characters) for reply_text_snippet; HTML-escape interpolated values.\n\nExtend webhookInput in packages/core/src/webhooks/service.ts with format \"json\" | \"slack\" (default json). createWebhook rejects a non-Slack URL with invalid_slack_url and Slack headers with headers_not_allowed, stores SLACK_URL_MASK in url, the encrypted real URL in a new urlEnc column and the format; API payloads omit urlEnc. updateWebhook rejects format changes with format_fixed, validates a changed Slack URL, and does not rewrite url for Slack. Add urlEnc to the Webhook model and to ENCRYPTED_COLUMNS in packages/core/src/crypto.ts. In packages/core/src/webhooks/deliver.ts, postWebhook sends {\"text\": slackText(JSON.parse(body))} for Slack and decrypts urlEnc as the target. Include an ACCOUNT_ERROR reason from event meta in buildPayload.\n\nAdd or update tests for the new behavior.",
+  "hidden_tests": [
+    "packages/core/test/rotate.test.ts",
+    "packages/core/test/webhooks-slack.test.ts"
+  ],
+  "setup": [
+    "cp -cR {repo}/node_modules node_modules",
+    "npm run db:generate"
+  ],
+  "exclude": [],
+  "test_command": "npm run db:generate && npx vitest run packages/core/test/rotate.test.ts packages/core/test/webhooks-slack.test.ts --reporter=junit --outputFile=.bench-junit/hidden.xml",
+  "suite_command": "npm run db:generate && npx vitest run packages/core --reporter=junit --outputFile=.bench-junit/suite.xml",
+  "junit_globs": [
+    ".bench-junit/*.xml"
+  ],
+  "timeout_min": 15
+}

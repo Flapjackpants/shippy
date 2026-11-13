@@ -1,0 +1,24 @@
+{
+  "id": "captain-silence-trim",
+  "repo": "~/Documents/programming/personal/captain",
+  "commit": "93bf999200d471ccee045471d26b7387946f8277",
+  "size": "medium",
+  "language": "python",
+  "task": "Fix silence trimming in the captain transcript editor so cuts no longer clip the ends of words. Replace the symmetric silence_max_pause setting with asymmetric pads: config.DEFAULTS[\"silence_keep_after\"] = 0.20 and config.DEFAULTS[\"silence_keep_before\"] = 0.03; config.load_config() must expose both and no setting key may contain \"pause\".\n\nChange captain.transcript.find_silence_gaps(transcript, min_duration, keep_after, keep_before) to walk display order (transcript.order), keep only keep_before at the lead-in (cut from 0.0 to the first word's start minus the pad), keep only keep_after at the trail-out (cut from the last word's end plus the pad to the transcript duration), and otherwise keep keep_after after the previous word and keep_before before the next. Also change shrink_silence_cut(gap_start, gap_end, keep_after, keep_before) -> tuple[float, float] | None: negative pads count as zero, and it returns None when at most 0.001 s would be cut. SILENCE_DISPLAY_MIN stays 0.1 and any gap at or above it yields a marker.\n\nUpdate the GUI so the model and view receive the new pads through set_silence_thresholds(min_duration, keep_after, keep_before), and SettingsDialog.values() returns silence_keep_after and silence_keep_before. Deleting a silence marker toggles a cut built with those pads. Existing Transcript editing (keep_ranges, delete, move, restore, caption breaks, find_repeats, EditHistory, to_json/from_json) and selection behavior must keep working.\n\nAdd or update tests for the new behavior.",
+  "hidden_tests": [
+    "tests/test_transcript.py",
+    "tests/test_transcript_view.py"
+  ],
+  "setup": [
+    "ln -s {repo}/.venv .venv"
+  ],
+  "exclude": [
+    ".venv"
+  ],
+  "test_command": "QT_QPA_PLATFORM=offscreen PYTHONPATH=src .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_transcript.py tests/test_transcript_view.py --junitxml .bench-junit/hidden.xml",
+  "suite_command": "QT_QPA_PLATFORM=offscreen PYTHONPATH=src .venv/bin/python -m pytest -q -p no:cacheprovider tests --junitxml .bench-junit/suite.xml",
+  "junit_globs": [
+    ".bench-junit/*.xml"
+  ],
+  "timeout_min": 15
+}
