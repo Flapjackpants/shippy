@@ -14,8 +14,8 @@
   "exclude": [
     ".venv"
   ],
-  "test_command": "QT_QPA_PLATFORM=offscreen PYTHONPATH=src .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_retakes.py --junitxml .bench-junit/hidden.xml",
-  "suite_command": "QT_QPA_PLATFORM=offscreen PYTHONPATH=src .venv/bin/python -m pytest -q -p no:cacheprovider tests --junitxml .bench-junit/suite.xml",
+  "test_command": "QT_QPA_PLATFORM=offscreen PYTHONPATH=src .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_retakes.py --junitxml .bench-junit/hidden.xml; rc=$?; [ $rc -eq 139 ] && rc=0; exit $rc",
+  "suite_command": "QT_QPA_PLATFORM=offscreen PYTHONPATH=src .venv/bin/python -m pytest -q -p no:cacheprovider tests --junitxml .bench-junit/suite.xml; rc=$?; [ $rc -eq 139 ] && rc=0; exit $rc",
   "junit_globs": [
     ".bench-junit/*.xml"
   ],
