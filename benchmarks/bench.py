@@ -3,7 +3,8 @@
 
 Stage 2 covers case loading, workspace preparation, grading and the free
 control arms (``oracle`` and ``null``). Stage 3 adds the t3-driven agent arms,
-usage and cost accounting, and the blind judge. Reporting is a later stage.
+usage and cost accounting, and the blind judge. Stage 4 adds the aggregate
+``report`` command; ``benchmarks/README.md`` documents the method.
 """
 
 from __future__ import annotations
@@ -1110,6 +1111,422 @@ def _format_result(record: dict[str, Any]) -> str:
     )
 
 
+def _k_value(record: dict[str, Any]) -> int:
+    try:
+        return int(record.get("k") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def load_records(run_ids: list[str]) -> list[dict[str, Any]]:
+    """Every ``record.json`` under the given run ids, sorted by case/arm/k."""
+    records: list[dict[str, Any]] = []
+    for run_id in run_ids:
+        run_dir = results_root() / run_id
+        if not run_dir.is_dir():
+            continue
+        for path in run_dir.glob("*/record.json"):
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            if isinstance(data, dict):
+                records.append(data)
+    records.sort(
+        key=lambda record: (
+            str(record.get("case")),
+            str(record.get("arm")),
+            _k_value(record),
+        )
+    )
+    return records
+
+
+def total_tokens(record: dict[str, Any]) -> int:
+    """Sum every token count over every model in one record."""
+    tokens_by_model = record.get("tokens_by_model")
+    if not isinstance(tokens_by_model, dict):
+        return 0
+    total = 0
+    for tokens in tokens_by_model.values():
+        if isinstance(tokens, dict):
+            total += sum(_count(value) for value in tokens.values())
+    return total
+
+
+def _median(values: list[float]) -> float | None:
+    numbers = sorted(float(value) for value in values)
+    if not numbers:
+        return None
+    middle = len(numbers) // 2
+    if len(numbers) % 2:
+        return numbers[middle]
+    return (numbers[middle - 1] + numbers[middle]) / 2
+
+
+def _grade_of(record: dict[str, Any]) -> dict[str, Any]:
+    grade = record.get("grade")
+    return grade if isinstance(grade, dict) else {}
+
+
+def _hidden_of(record: dict[str, Any]) -> dict[str, Any] | None:
+    hidden = _grade_of(record).get("hidden")
+    return hidden if isinstance(hidden, dict) else None
+
+
+def _suite_of(record: dict[str, Any]) -> dict[str, Any] | None:
+    suite = _grade_of(record).get("suite")
+    return suite if isinstance(suite, dict) else None
+
+
+def _resolved_of(record: dict[str, Any]) -> bool:
+    return bool(_grade_of(record).get("resolved"))
+
+
+def _judge_overall(record: dict[str, Any]) -> float | None:
+    verdict = record.get("judge")
+    if not isinstance(verdict, dict):
+        return None
+    overall = verdict.get("overall")
+    if isinstance(overall, bool) or not isinstance(overall, (int, float)):
+        return None
+    return float(overall)
+
+
+def _hygiene_issue(record: dict[str, Any]) -> bool:
+    checks = _grade_of(record).get("hygiene")
+    if not isinstance(checks, dict):
+        return False
+    return bool(
+        checks.get("non_conventional")
+        or checks.get("attribution")
+        or _count(checks.get("uncommitted")) > 0
+    )
+
+
+def _arm_order(grouped: dict[str, Any]) -> list[str]:
+    order = [arm for arm in ARMS if arm in grouped]
+    order += sorted(arm for arm in grouped if arm not in ARMS)
+    return order
+
+
+def summarize(records: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Per-arm aggregates over one or more runs."""
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for record in records:
+        arm = record.get("arm")
+        if isinstance(arm, str):
+            grouped.setdefault(arm, []).append(record)
+
+    summary: dict[str, dict[str, Any]] = {}
+    for arm in _arm_order(grouped):
+        items = grouped[arm]
+        count = len(items)
+        pass_rates = [
+            hidden["pass_rate"]
+            for hidden in (_hidden_of(record) for record in items)
+            if isinstance(hidden, dict)
+            and isinstance(hidden.get("pass_rate"), (int, float))
+        ]
+        suites = [
+            suite for suite in (_suite_of(record) for record in items) if suite
+        ]
+        costs = [
+            float(record["cost_usd"])
+            for record in items
+            if record.get("cost_complete", True)
+            and isinstance(record.get("cost_usd"), (int, float))
+        ]
+        judged = [
+            overall
+            for overall in (_judge_overall(record) for record in items)
+            if overall is not None
+        ]
+        walls = [
+            float(record["wall_s"]) / 60.0
+            for record in items
+            if isinstance(record.get("wall_s"), (int, float))
+        ]
+        summary[arm] = {
+            "n": count,
+            "errors": sum(1 for record in items if record.get("status") != "ok"),
+            "resolved_rate": (
+                sum(1 for record in items if _resolved_of(record)) / count
+                if count
+                else None
+            ),
+            "hidden_pass_mean": (
+                sum(pass_rates) / len(pass_rates) if pass_rates else None
+            ),
+            "suite_green_rate": (
+                sum(1 for suite in suites if suite.get("green")) / len(suites)
+                if suites
+                else None
+            ),
+            "wall_min_median": _median(walls),
+            "cost_median": _median(costs),
+            "cost_incomplete": sum(
+                1 for record in items if not record.get("cost_complete", True)
+            ),
+            "tokens_median": _median([total_tokens(record) for record in items]),
+            "judge_mean": sum(judged) / len(judged) if judged else None,
+            "questions": sum(_count(record.get("questions")) for record in items),
+            "hygiene_issues": sum(
+                1 for record in items if _hygiene_issue(record)
+            ),
+        }
+    return summary
+
+
+_PAIRED_METRICS = ("cost", "wall", "resolved", "judge")
+
+
+def _case_metric(records: list[dict[str, Any]], metric: str) -> float | None:
+    if metric == "cost":
+        values = [
+            float(record["cost_usd"])
+            for record in records
+            if record.get("cost_complete", True)
+            and isinstance(record.get("cost_usd"), (int, float))
+        ]
+    elif metric == "wall":
+        values = [
+            float(record["wall_s"])
+            for record in records
+            if isinstance(record.get("wall_s"), (int, float))
+        ]
+    elif metric == "resolved":
+        values = [1.0 if _resolved_of(record) else 0.0 for record in records]
+    else:
+        values = [
+            overall
+            for overall in (_judge_overall(record) for record in records)
+            if overall is not None
+        ]
+    return _median(values)
+
+
+def paired(
+    records: list[dict[str, Any]], baseline: str = "claude-base"
+) -> dict[str, dict[str, Any]]:
+    """Per-case win/loss/tie counts of every arm against ``baseline``."""
+    grouped: dict[str, dict[str, list[dict[str, Any]]]] = {}
+    for record in records:
+        arm = record.get("arm")
+        if isinstance(arm, str):
+            grouped.setdefault(arm, {}).setdefault(
+                str(record.get("case")), []
+            ).append(record)
+    if baseline not in grouped:
+        return {}
+
+    base = grouped[baseline]
+    result: dict[str, dict[str, Any]] = {}
+    for arm in _arm_order(grouped):
+        if arm == baseline:
+            continue
+        cases = sorted(
+            case
+            for case, items in grouped[arm].items()
+            if case in base
+            and all(record.get("status") == "ok" for record in items)
+            and all(record.get("status") == "ok" for record in base[case])
+        )
+        counts = {metric: [0, 0, 0] for metric in _PAIRED_METRICS}
+        for case in cases:
+            for metric in _PAIRED_METRICS:
+                arm_value = _case_metric(grouped[arm][case], metric)
+                base_value = _case_metric(base[case], metric)
+                if arm_value is None or base_value is None:
+                    continue
+                if arm_value == base_value:
+                    counts[metric][2] += 1
+                elif metric in ("cost", "wall"):
+                    counts[metric][0 if arm_value < base_value else 1] += 1
+                else:
+                    counts[metric][0 if arm_value > base_value else 1] += 1
+        entry: dict[str, Any] = {"cases": len(cases)}
+        entry.update(counts)
+        result[arm] = entry
+    return result
+
+
+def _pct(value: float | None) -> str:
+    return "-" if value is None else f"{value * 100:.0f}%"
+
+
+def _num(value: float | None, digits: int = 1) -> str:
+    return "-" if value is None else f"{value:.{digits}f}"
+
+
+def _money(value: float | None) -> str:
+    return "-" if value is None else f"{value:.4f}"
+
+
+def _verdict(value: float | None) -> str:
+    return "-" if value is None else f"{value:g}"
+
+
+def _version_text(value: Any, label: str) -> str:
+    """Render a version string without repeating its own label."""
+    if not value:
+        return "n/a"
+    text = str(value).strip()
+    prefix = f"{label} "
+    if text.lower().startswith(prefix.lower()):
+        text = text[len(prefix):]
+    return text or "n/a"
+
+
+def render_report(
+    run_ids: list[str],
+    records: list[dict[str, Any]],
+    meta: dict[str, Any] | None = None,
+    baseline: str = "claude-base",
+) -> str:
+    """Markdown report: versions, per-arm aggregates, paired and per-run tables."""
+    meta = meta or {}
+    head = meta.get("shippy_head") or "n/a"
+    lines = [
+        f"# Benchmark report: {', '.join(run_ids)}",
+        "",
+        (
+            f"Versions: claude {_version_text(meta.get('claude_version'), 'claude')} · "
+            f"t3 {_version_text(meta.get('t3_version'), 't3')} · "
+            f"shippy {head[:12]}"
+        ),
+    ]
+    skills = meta.get("skills")
+    if isinstance(skills, dict):
+        mismatched = sorted(
+            name
+            for name, state in skills.items()
+            if isinstance(state, dict) and not state.get("match")
+        )
+        if mismatched:
+            lines += [
+                "",
+                "Warning: installed skill copy differs from repo: "
+                f"{', '.join(mismatched)}.",
+            ]
+
+    lines += [
+        "",
+        "## Arms",
+        "",
+        "| Arm | n | Errors | Resolved | Hidden pass | Suite green | "
+        "Median wall (min) | Median cost ($) | Median tokens | Judge | "
+        "Questions | Hygiene issues |",
+        "|---|---|---|---|---|---|---|---|---|---|---|---|",
+    ]
+    for arm, stats in summarize(records).items():
+        lines.append(
+            "| "
+            + " | ".join(
+                [
+                    arm,
+                    str(stats["n"]),
+                    str(stats["errors"]),
+                    _pct(stats["resolved_rate"]),
+                    _pct(stats["hidden_pass_mean"]),
+                    _pct(stats["suite_green_rate"]),
+                    _num(stats["wall_min_median"]),
+                    _money(stats["cost_median"]),
+                    _num(stats["tokens_median"], 0),
+                    _num(stats["judge_mean"]),
+                    str(stats["questions"]),
+                    str(stats["hygiene_issues"]),
+                ]
+            )
+            + " |"
+        )
+
+    lines += ["", f"## Paired vs {baseline}", ""]
+    comparisons = paired(records, baseline)
+    if not comparisons:
+        if not any(record.get("arm") == baseline for record in records):
+            lines.append(
+                f"_Paired comparison omitted: baseline {baseline} has no records._"
+            )
+        else:
+            lines.append(
+                "_Paired comparison omitted: no other arm has records._"
+            )
+    else:
+        lines += [
+            f"| Arm | Cases | Cost W/L/T | Wall W/L/T | Resolved W/L/T | "
+            f"Judge W/L/T |",
+            "|---|---|---|---|---|---|",
+        ]
+        for arm, entry in comparisons.items():
+            lines.append(
+                "| "
+                + " | ".join(
+                    [
+                        arm,
+                        str(entry["cases"]),
+                        *(
+                            f"{entry[metric][0]}/{entry[metric][1]}/"
+                            f"{entry[metric][2]}"
+                            for metric in _PAIRED_METRICS
+                        ),
+                    ]
+                )
+                + " |"
+            )
+
+    lines += [
+        "",
+        "## Runs",
+        "",
+        "| Case | Arm | k | Status | Resolved | Hidden | Suite | "
+        "Wall (min) | Cost ($) | Tokens | Judge |",
+        "|---|---|---|---|---|---|---|---|---|---|---|",
+    ]
+    for record in records:
+        hidden = _hidden_of(record)
+        suite = _suite_of(record)
+        cost = record.get("cost_usd")
+        cost_text = _money(cost if isinstance(cost, (int, float)) else None)
+        if isinstance(cost, (int, float)) and not record.get(
+            "cost_complete", True
+        ):
+            cost_text += "*"
+        lines.append(
+            "| "
+            + " | ".join(
+                [
+                    str(record.get("case")),
+                    str(record.get("arm")),
+                    str(_k_value(record)),
+                    str(record.get("status")),
+                    "yes" if _resolved_of(record) else "no",
+                    (
+                        f"{hidden.get('passed', 0)}/{hidden.get('tests', 0)}"
+                        if hidden
+                        else "-"
+                    ),
+                    (
+                        "green"
+                        if suite and suite.get("green")
+                        else ("red" if suite else "-")
+                    ),
+                    _num(
+                        float(record["wall_s"]) / 60.0
+                        if isinstance(record.get("wall_s"), (int, float))
+                        else None
+                    ),
+                    cost_text,
+                    str(total_tokens(record)),
+                    _verdict(_judge_overall(record)),
+                ]
+            )
+            + " |"
+        )
+    lines += ["", "* marks a cost that omits at least one unpriced model."]
+    return "\n".join(lines)
+
+
 def _preflight_case(case: dict[str, Any]) -> list[str]:
     repo = Path(case["repo"])
     commit = case["commit"]
@@ -1208,7 +1625,36 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--no-judge", action="store_true")
     run.add_argument("--keep-workspace", action="store_true")
 
+    report = sub.add_parser("report", help="aggregate run records into a report")
+    report.add_argument("run_ids", nargs="+", metavar="RUN_ID")
+    report.add_argument("--baseline", default="claude-base")
+
     args = parser.parse_args(argv)
+
+    if args.command == "report":
+        records = load_records(args.run_ids)
+        if not records:
+            print(
+                f"no records found under {results_root()} for "
+                f"{', '.join(args.run_ids)}",
+                file=sys.stderr,
+            )
+            return 1
+        meta: dict[str, Any] | None = None
+        meta_path = results_root() / args.run_ids[0] / "meta.json"
+        if meta_path.is_file():
+            try:
+                loaded = json.loads(meta_path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                loaded = None
+            if isinstance(loaded, dict):
+                meta = loaded
+        text = render_report(args.run_ids, records, meta, args.baseline)
+        target = results_root() / args.run_ids[0] / "report.md"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text + "\n", encoding="utf-8")
+        print(text)
+        return 0
 
     if args.command == "preflight":
         cases = load_cases("all")

@@ -1,4 +1,6 @@
+import contextlib
 import importlib.util
+import io
 import json
 import os
 import shutil
@@ -916,6 +918,293 @@ class TestSkillHash(unittest.TestCase):
             self.assertNotEqual(self.bench.skill_hash(root), first)
 
         self.assertIsNone(self.bench.skill_hash(Path(tmp) / "missing"))
+
+
+def make_record(
+    case,
+    arm,
+    k=1,
+    status="ok",
+    resolved=None,
+    pass_rate=None,
+    suite=None,
+    wall_s=0.0,
+    cost=0.0,
+    complete=True,
+    tokens=None,
+    judge=None,
+    questions=0,
+    uncommitted=0,
+):
+    """One record.json payload shaped like ``run_one`` writes."""
+    grade = None
+    if resolved is not None or pass_rate is not None or suite is not None:
+        hidden = None
+        if pass_rate is not None:
+            passed = round(pass_rate * 10)
+            hidden = {
+                "tests": 10,
+                "failures": 10 - passed,
+                "errors": 0,
+                "skipped": 0,
+                "passed": passed,
+                "pass_rate": pass_rate,
+                "green": pass_rate == 1.0,
+            }
+        grade = {
+            "hygiene": {
+                "commits": [],
+                "non_conventional": [],
+                "attribution": [],
+                "uncommitted": uncommitted,
+            },
+            "diff": {"files": 1, "added": 1, "deleted": 0, "empty": False},
+            "hidden": hidden,
+            "suite": suite,
+            "resolved": bool(resolved),
+        }
+    return {
+        "run_id": "r",
+        "case": case,
+        "arm": arm,
+        "k": k,
+        "status": status,
+        "error": None,
+        "wall_s": wall_s,
+        "questions": questions,
+        "tokens_by_model": tokens or {},
+        "cost_usd": cost,
+        "cost_complete": complete,
+        "grade": grade,
+        "judge": judge,
+    }
+
+
+def token_block(total):
+    return {
+        "input": total,
+        "output": 0,
+        "cache_read": 0,
+        "cache_write_5m": 0,
+        "cache_write_1h": 0,
+    }
+
+
+class TestSummarize(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.bench = load_bench_module()
+
+    def test_arm_aggregates(self):
+        records = [
+            make_record(
+                "case-a",
+                "oracle",
+                resolved=True,
+                pass_rate=1.0,
+                suite={"green": True},
+                wall_s=60.0,
+                cost=0.0,
+                tokens={"m": token_block(100)},
+                judge={"overall": 8},
+            ),
+            make_record(
+                "case-b",
+                "oracle",
+                resolved=False,
+                pass_rate=0.5,
+                suite=None,
+                wall_s=120.0,
+                cost=0.5,
+                complete=False,
+                tokens={"m": token_block(300)},
+                judge={"overall": 6},
+                questions=1,
+                uncommitted=2,
+            ),
+            make_record("case-a", "null", status="error"),
+            make_record(
+                "case-b",
+                "null",
+                resolved=False,
+                pass_rate=0.0,
+                suite={"green": False},
+                wall_s=30.0,
+                cost=1.0,
+                tokens={"m": token_block(200)},
+            ),
+        ]
+
+        summary = self.bench.summarize(records)
+
+        self.assertEqual(list(summary), ["oracle", "null"])
+        oracle = summary["oracle"]
+        self.assertEqual(oracle["n"], 2)
+        self.assertEqual(oracle["errors"], 0)
+        self.assertEqual(oracle["resolved_rate"], 0.5)
+        self.assertEqual(oracle["hidden_pass_mean"], 0.75)
+        self.assertEqual(oracle["suite_green_rate"], 1.0)
+        self.assertEqual(oracle["wall_min_median"], 1.5)
+        self.assertEqual(oracle["cost_median"], 0.0)
+        self.assertEqual(oracle["cost_incomplete"], 1)
+        self.assertEqual(oracle["tokens_median"], 200)
+        self.assertEqual(oracle["judge_mean"], 7.0)
+        self.assertEqual(oracle["questions"], 1)
+        self.assertEqual(oracle["hygiene_issues"], 1)
+
+        null = summary["null"]
+        self.assertEqual(null["n"], 2)
+        self.assertEqual(null["errors"], 1)
+        self.assertEqual(null["resolved_rate"], 0.0)
+        self.assertEqual(null["hidden_pass_mean"], 0.0)
+        self.assertEqual(null["suite_green_rate"], 0.0)
+        self.assertEqual(null["wall_min_median"], 0.25)
+        self.assertEqual(null["cost_median"], 0.5)
+        self.assertEqual(null["cost_incomplete"], 0)
+        self.assertEqual(null["tokens_median"], 100)
+        self.assertIsNone(null["judge_mean"])
+        self.assertEqual(null["questions"], 0)
+        self.assertEqual(null["hygiene_issues"], 0)
+
+    def test_unknown_arms_follow_known_ones(self):
+        records = [
+            make_record("a", "zeta", status="error"),
+            make_record("a", "oracle", status="error"),
+        ]
+        self.assertEqual(list(self.bench.summarize(records)), ["oracle", "zeta"])
+
+    def test_total_tokens_sums_every_model(self):
+        record = make_record(
+            "a",
+            "oracle",
+            tokens={"m1": token_block(10), "m2": token_block(5)},
+        )
+        self.assertEqual(self.bench.total_tokens(record), 15)
+
+
+class TestPaired(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.bench = load_bench_module()
+
+    def test_wins_losses_ties_and_exclusions(self):
+        records = [
+            # Case A: shippy cheaper, faster, resolved, better judged.
+            make_record(
+                "case-a",
+                "shippy",
+                resolved=True,
+                wall_s=60.0,
+                cost=1.0,
+                judge={"overall": 8},
+            ),
+            make_record(
+                "case-a",
+                "claude-base",
+                resolved=False,
+                wall_s=120.0,
+                cost=2.0,
+                judge={"overall": 6},
+            ),
+            # Case B: a baseline error excludes the case entirely.
+            make_record(
+                "case-b", "shippy", resolved=True, wall_s=60.0, cost=1.0,
+                judge={"overall": 9},
+            ),
+            make_record("case-b", "claude-base", status="error"),
+            # Case C: ties, and the judge is absent on one side.
+            make_record("case-c", "shippy", resolved=True, wall_s=60.0, cost=2.0),
+            make_record(
+                "case-c",
+                "claude-base",
+                resolved=True,
+                wall_s=60.0,
+                cost=2.0,
+                judge={"overall": 7},
+            ),
+        ]
+
+        paired = self.bench.paired(records)
+
+        self.assertEqual(list(paired), ["shippy"])
+        self.assertEqual(paired["shippy"]["cases"], 2)
+        self.assertEqual(paired["shippy"]["cost"], [1, 0, 1])
+        self.assertEqual(paired["shippy"]["wall"], [1, 0, 1])
+        self.assertEqual(paired["shippy"]["resolved"], [1, 0, 1])
+        self.assertEqual(paired["shippy"]["judge"], [1, 0, 0])
+
+    def test_no_baseline_records_returns_empty(self):
+        records = [make_record("case-a", "oracle", resolved=True)]
+        self.assertEqual(self.bench.paired(records), {})
+
+
+class TestReportCli(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.bench = load_bench_module()
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.results = Path(self.tmp.name) / "results"
+        self.env = patch.dict(
+            os.environ, {"SHIPPY_BENCH_RESULTS": str(self.results)}
+        )
+        self.env.start()
+        self.addCleanup(self.env.stop)
+
+    def _write(self, run_id, record):
+        name = f"{record['case']}__{record['arm']}__{record['k']}"
+        out = self.results / run_id / name
+        out.mkdir(parents=True)
+        (out / "record.json").write_text(
+            json.dumps(record, indent=2), encoding="utf-8"
+        )
+
+    def test_writes_report_for_controls(self):
+        self._write(
+            "r1",
+            make_record(
+                "case-a",
+                "oracle",
+                resolved=True,
+                pass_rate=1.0,
+                suite={"green": True},
+                wall_s=30.0,
+            ),
+        )
+        self._write(
+            "r1",
+            make_record(
+                "case-a",
+                "null",
+                resolved=False,
+                pass_rate=0.0,
+                suite={"green": True},
+            ),
+        )
+
+        with contextlib.redirect_stdout(io.StringIO()):
+            code = self.bench.main(["report", "r1"])
+
+        self.assertEqual(code, 0)
+        report = self.results / "r1" / "report.md"
+        self.assertTrue(report.is_file())
+        text = report.read_text(encoding="utf-8")
+        self.assertIn("# Benchmark report: r1", text)
+        self.assertIn("## Arms", text)
+        self.assertIn("## Paired vs claude-base", text)
+        self.assertIn("## Runs", text)
+        self.assertIn("baseline claude-base has no records", text)
+        self.assertIn("100%", text)
+        self.assertIn("0%", text)
+
+    def test_unknown_run_id_exits_one(self):
+        with contextlib.redirect_stdout(io.StringIO()):
+            with contextlib.redirect_stderr(io.StringIO()):
+                code = self.bench.main(["report", "missing"])
+        self.assertEqual(code, 1)
+        self.assertFalse((self.results / "missing" / "report.md").exists())
 
 
 if __name__ == "__main__":
