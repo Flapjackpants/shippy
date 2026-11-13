@@ -1,0 +1,27 @@
+{
+  "_source": "claude-api skill model table, cached 2026-10-06; cache writes derived as 1.25x (5m) and 2x (1h) input; Haiku cache read derived as 0.1x input; GPT-6 prices unknown, fill in to price Codex",
+  "claude-opus-5-5": {
+    "input": 4.0,
+    "output": 20.0,
+    "cache_read": 0.2,
+    "cache_write_5m": 5.0,
+    "cache_write_1h": 8.0
+  },
+  "claude-sonnet-5-5": {
+    "input": 2.0,
+    "output": 10.0,
+    "cache_read": 0.2,
+    "cache_write_5m": 2.5,
+    "cache_write_1h": 4.0
+  },
+  "claude-haiku-5-5": {
+    "input": 0.1,
+    "output": 0.5,
+    "cache_read": 0.01,
+    "cache_write_5m": 0.125,
+    "cache_write_1h": 0.2
+  },
+  "gpt-6-astra": null,
+  "gpt-6-sol": null,
+  "gpt-6-luna": null
+}

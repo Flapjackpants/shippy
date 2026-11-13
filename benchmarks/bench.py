@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
-"""Replay benchmark: prepare a workspace from a source commit, grade a change.
+"""Replay benchmark: prepare a workspace from a source commit, drive arms, grade.
 
 Stage 2 covers case loading, workspace preparation, grading and the free
-control arms (``oracle`` and ``null``). Agent arms, usage accounting, cost,
-judging and reporting are added by later stages.
+control arms (``oracle`` and ``null``). Stage 3 adds the t3-driven agent arms,
+usage and cost accounting, and the blind judge. Reporting is a later stage.
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -16,6 +17,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 import time
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
@@ -48,6 +50,51 @@ ATTRIBUTION = re.compile(r"(?im)^(co-authored-by:|.*generated with)")
 
 CONTROL_ARMS = ("oracle", "null")
 
+AGENT_ARMS: dict[str, dict[str, str]] = {
+    "claude-base": {
+        "provider": "claudeAgent",
+        "model": "claude-opus-5-5",
+        "style": "plan-build",
+    },
+    "codex-base": {
+        "provider": "codex",
+        "model": "gpt-6-astra",
+        "style": "plan-build",
+    },
+    "shippy": {
+        "provider": "claudeAgent",
+        "model": "claude-opus-5-5",
+        "style": "skill",
+        "skill": "shippy",
+    },
+    "shippy-t3": {
+        "provider": "claudeAgent",
+        "model": "claude-opus-5-5",
+        "style": "skill",
+        "skill": "shippy-t3",
+    },
+}
+
+ARMS = CONTROL_ARMS + tuple(AGENT_ARMS)
+
+AUTO_CLAUSE = (
+    "Benchmark run: no human is available. Treat the plan as approved "
+    "(Approval: auto, Commits: per stage); do not ask questions; take your "
+    "recommended option for every decision and note it. Do not push."
+)
+PLAN_SUFFIX = "Write an implementation plan only; do not edit files yet."
+BUILD_PROMPT = (
+    "The plan is approved. Implement it, run the relevant tests, and commit "
+    "with a Conventional Commit message."
+)
+NUDGE = "No human is available; proceed with your recommendation."
+
+JUDGE_MODEL = "claude-sonnet-5-5"
+JUDGE_PATCH_LIMIT = 150_000
+JUDGE_TIMEOUT_S = 600
+
+_TOKEN_KEYS = ("input", "output", "cache_read", "cache_write_5m", "cache_write_1h")
+
 _COUNT_KEYS = ("tests", "failures", "errors", "skipped")
 
 
@@ -65,6 +112,48 @@ def bench_root() -> Path:
     if env:
         return Path(env).expanduser().resolve()
     return Path("~/shippy-bench").expanduser().resolve()
+
+
+def t3_bin() -> str:
+    """The t3 CLI: explicit override, then the usual install, then PATH."""
+    env = os.environ.get("SHIPPY_BENCH_T3")
+    if env:
+        return env
+    installed = Path("~/.t3/bin/t3").expanduser()
+    if installed.exists():
+        return str(installed)
+    return "t3"
+
+
+def claude_bin() -> str:
+    return os.environ.get("SHIPPY_BENCH_CLAUDE") or "claude"
+
+
+def claude_projects_dir() -> Path:
+    env = os.environ.get("SHIPPY_BENCH_CLAUDE_DIR")
+    if env:
+        return Path(env).expanduser()
+    return Path("~/.claude/projects").expanduser()
+
+
+def codex_sessions_dir() -> Path:
+    env = os.environ.get("SHIPPY_BENCH_CODEX_DIR")
+    if env:
+        return Path(env).expanduser()
+    return Path("~/.codex/sessions").expanduser()
+
+
+def slot_workspace(case_id: str, arm: str) -> Path:
+    """Stable per-(case, arm) workspace reused by every k of an agent arm."""
+    return bench_root() / "slots" / f"{case_id}__{arm}"
+
+
+def build_turns(arm: str, task: str) -> list[str]:
+    """The messages an arm receives, in order."""
+    spec = AGENT_ARMS[arm]
+    if spec["style"] == "plan-build":
+        return [f"{task}\n\n{PLAN_SUFFIX}", f"{BUILD_PROMPT} {AUTO_CLAUSE}"]
+    return [f"${spec['skill']} {task}\n\n{AUTO_CLAUSE}"]
 
 
 def load_case(path_or_id: str) -> dict[str, Any]:
@@ -254,6 +343,175 @@ def apply_oracle(case: dict[str, Any], ws: Path, base_sha: str) -> None:
     _bench_commit(ws, "oracle")
 
 
+def _tail(text: str | None, limit: int = 4000) -> str:
+    return (text or "")[-limit:]
+
+
+def _inside_bench_root(path: Path) -> bool:
+    try:
+        return Path(path).resolve().is_relative_to(bench_root())
+    except (OSError, ValueError):
+        return False
+
+
+def _reset_slot(ws: Path) -> None:
+    """Remove a stale slot workspace, refusing paths outside the bench root."""
+    if not ws.exists():
+        return
+    if not _inside_bench_root(ws):
+        raise RuntimeError(f"refusing to remove workspace outside {bench_root()}: {ws}")
+    shutil.rmtree(ws)
+
+
+def _last_json(text: str | None) -> dict[str, Any] | None:
+    for line in reversed((text or "").splitlines()):
+        candidate = line.strip()
+        if not candidate:
+            continue
+        try:
+            data = json.loads(candidate)
+        except (ValueError, TypeError):
+            continue
+        return data if isinstance(data, dict) else None
+    return None
+
+
+def ensure_project(ws: Path, title: str) -> None:
+    """Register the workspace as a T3 project; an existing one is fine."""
+    proc = subprocess.run(
+        [t3_bin(), "project", "add", str(ws), "--title", title],
+        capture_output=True,
+        text=True,
+        errors="replace",
+    )
+    output = _tail((proc.stdout or "") + (proc.stderr or ""))
+    if proc.returncode == 0 or "ProjectAlreadyExistsError" in output:
+        return
+    raise RuntimeError(f"t3 project add failed ({proc.returncode}): {output}")
+
+
+def drive_t3(
+    ws: Path,
+    arm: str,
+    turns: list[str],
+    title: str,
+    timeout_s: float,
+    out: Path | None = None,
+) -> dict[str, Any]:
+    """Send ``turns`` to one t3 thread, answering permission waits up to twice."""
+    spec = AGENT_ARMS[arm]
+    result: dict[str, Any] = {
+        "thread_id": None,
+        "status": "completed",
+        "questions": 0,
+        "wall_s": 0.0,
+        "replies": [],
+        "error": None,
+    }
+    deadline = time.monotonic() + float(timeout_s)
+    thread_id: str | None = None
+    index = 0
+    queued: str | None = None
+
+    while index < len(turns):
+        message = queued if queued is not None else turns[index]
+        queued = None
+        if thread_id is None:
+            args = [
+                "thread",
+                "start",
+                str(ws),
+                "-",
+                "--provider",
+                spec["provider"],
+                "--model",
+                spec["model"],
+                "--title",
+                title,
+                "--wait",
+                "--json",
+            ]
+        else:
+            args = ["thread", "send", thread_id, "-", "--wait", "--json"]
+
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            result["status"] = "timeout"
+            result["error"] = "time budget exhausted before the next t3 call"
+            break
+
+        started = time.monotonic()
+        try:
+            proc = subprocess.run(
+                [t3_bin(), *args],
+                input=message,
+                capture_output=True,
+                text=True,
+                errors="replace",
+                timeout=remaining,
+            )
+        except subprocess.TimeoutExpired:
+            result["wall_s"] += time.monotonic() - started
+            result["status"] = "timeout"
+            result["error"] = (
+                "t3 call timed out after "
+                f"{remaining:.0f}s; the thread keeps running in T3"
+            )
+            break
+        result["wall_s"] += time.monotonic() - started
+
+        payload = _last_json(proc.stdout)
+        if proc.returncode == 0:
+            if payload is None:
+                result["status"] = "failed"
+                result["error"] = "t3 printed unparseable output: " + _tail(
+                    proc.stdout, 1000
+                )
+                break
+            if not thread_id and payload.get("threadId"):
+                thread_id = str(payload["threadId"])
+            result["replies"].append(payload.get("reply") or "")
+            index += 1
+            continue
+
+        if proc.returncode == 2:
+            result["questions"] += 1
+            if not thread_id and payload and payload.get("threadId"):
+                thread_id = str(payload["threadId"])
+            if result["questions"] <= 2 and thread_id:
+                queued = NUDGE
+                continue
+            result["status"] = "needs_input"
+            result["error"] = "the thread is still waiting for an answer"
+            break
+
+        result["status"] = "failed"
+        error = payload.get("error") if payload else None
+        result["error"] = str(error) if error else (
+            _tail(proc.stderr) or f"t3 exited {proc.returncode}"
+        )
+        break
+
+    result["thread_id"] = thread_id
+    if out is not None and thread_id:
+        try:
+            remaining = max(deadline - time.monotonic(), 1.0)
+            shown = subprocess.run(
+                [t3_bin(), "thread", "show", thread_id, "--json"],
+                capture_output=True,
+                text=True,
+                errors="replace",
+                timeout=remaining,
+            )
+            target = Path(out) / "thread.json"
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(shown.stdout or "", encoding="utf-8")
+        except (OSError, subprocess.SubprocessError):
+            pass
+    result["wall_s"] = round(result["wall_s"], 3)
+    return result
+
+
 def clear_junit(ws: Path, globs: list[str]) -> None:
     for pattern in globs:
         for path in Path(ws).glob(pattern):
@@ -427,6 +685,316 @@ def grade(case: dict[str, Any], ws: Path, base_sha: str, out_dir: Path) -> dict[
     }
 
 
+def claude_slug(path: Path | str) -> str:
+    """Claude Code's project directory name for an absolute path."""
+    return re.sub(r"[^A-Za-z0-9]", "-", str(Path(path).resolve()))
+
+
+def _epoch(value: Any) -> float | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    text = value.strip()
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        stamp = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if stamp.tzinfo is None:
+        stamp = stamp.replace(tzinfo=timezone.utc)
+    return stamp.timestamp()
+
+
+def _count(value: Any) -> int:
+    return value if isinstance(value, int) else 0
+
+
+def _empty_tokens() -> dict[str, int]:
+    return {key: 0 for key in _TOKEN_KEYS}
+
+
+def collect_claude_usage(ws: Path, start: float, end: float) -> dict[str, dict]:
+    """Sum Claude transcript usage for ``ws`` inside ``[start, end]``."""
+    root = claude_projects_dir() / claude_slug(ws)
+    latest: dict[str, dict[str, Any]] = {}
+    if root.is_dir():
+        for path in sorted(root.rglob("*.jsonl")):
+            try:
+                lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+            except OSError:
+                continue
+            for line in lines:
+                try:
+                    data = json.loads(line)
+                except (ValueError, TypeError):
+                    continue
+                if not isinstance(data, dict) or data.get("type") != "assistant":
+                    continue
+                message = data.get("message")
+                if not isinstance(message, dict):
+                    continue
+                usage = message.get("usage")
+                model = message.get("model")
+                if not isinstance(usage, dict) or not isinstance(model, str):
+                    continue
+                if not model or model == "<synthetic>":
+                    continue
+                stamp = _epoch(data.get("timestamp"))
+                if stamp is None or stamp < start or stamp > end:
+                    continue
+                message_id = message.get("id")
+                if not isinstance(message_id, str) or not message_id:
+                    continue
+                latest[message_id] = {"model": model, "usage": usage}
+
+    totals: dict[str, dict[str, int]] = {}
+    for entry in latest.values():
+        usage = entry["usage"]
+        tokens = totals.setdefault(entry["model"], _empty_tokens())
+        tokens["input"] += _count(usage.get("input_tokens"))
+        tokens["output"] += _count(usage.get("output_tokens"))
+        tokens["cache_read"] += _count(usage.get("cache_read_input_tokens"))
+        written = _count(usage.get("cache_creation_input_tokens"))
+        split = usage.get("cache_creation")
+        if isinstance(split, dict) and (
+            "ephemeral_5m_input_tokens" in split
+            or "ephemeral_1h_input_tokens" in split
+        ):
+            tokens["cache_write_5m"] += _count(split.get("ephemeral_5m_input_tokens"))
+            tokens["cache_write_1h"] += _count(split.get("ephemeral_1h_input_tokens"))
+        else:
+            tokens["cache_write_5m"] += written
+    return totals
+
+
+def collect_codex_usage(ws: Path, start: float, end: float) -> dict[str, dict]:
+    """Read the last Codex token count from rollouts started for ``ws``."""
+    root = codex_sessions_dir()
+    target = Path(ws).resolve()
+    totals: dict[str, dict[str, int]] = {}
+    if not root.is_dir():
+        return totals
+    for path in sorted(root.rglob("rollout-*.jsonl")):
+        try:
+            if path.stat().st_mtime < start:
+                continue
+            lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        except OSError:
+            continue
+        meta: dict[str, Any] | None = None
+        model: str | None = None
+        tokens: dict[str, int] | None = None
+        for line in lines:
+            try:
+                data = json.loads(line)
+            except (ValueError, TypeError):
+                continue
+            if not isinstance(data, dict):
+                continue
+            kind = data.get("type")
+            payload = data.get("payload")
+            if not isinstance(payload, dict):
+                continue
+            if kind == "session_meta" and meta is None:
+                meta = data
+            elif kind == "turn_context" and model is None:
+                name = payload.get("model")
+                if isinstance(name, str) and name:
+                    model = name
+            elif kind == "token_count":
+                info = payload.get("info")
+                usage = (info if isinstance(info, dict) else payload).get(
+                    "total_token_usage"
+                )
+                if isinstance(usage, dict):
+                    cached = _count(usage.get("cached_input_tokens"))
+                    tokens = {
+                        "input": _count(usage.get("input_tokens")) - cached,
+                        "output": _count(usage.get("output_tokens")),
+                        "cache_read": cached,
+                        "cache_write_5m": 0,
+                        "cache_write_1h": 0,
+                    }
+        if meta is None or tokens is None:
+            continue
+        payload = meta.get("payload") or {}
+        cwd = payload.get("cwd") if isinstance(payload, dict) else None
+        if not isinstance(cwd, str):
+            continue
+        try:
+            if Path(cwd).expanduser().resolve() != target:
+                continue
+        except (OSError, ValueError):
+            continue
+        stamp = _epoch(meta.get("timestamp"))
+        if stamp is None or stamp < start or stamp > end:
+            continue
+        name = model or "codex-unknown"
+        entry = totals.setdefault(name, _empty_tokens())
+        for key in _TOKEN_KEYS:
+            entry[key] += tokens[key]
+    return totals
+
+
+def merge_usage(*usages: dict[str, dict]) -> dict[str, dict]:
+    """Sum token dicts per model."""
+    merged: dict[str, dict[str, int]] = {}
+    for usage in usages:
+        for model, tokens in (usage or {}).items():
+            entry = merged.setdefault(model, _empty_tokens())
+            for key in _TOKEN_KEYS:
+                entry[key] += _count(tokens.get(key))
+    return merged
+
+
+def load_prices() -> dict[str, Any]:
+    return json.loads((BENCH_DIR / "prices.json").read_text(encoding="utf-8"))
+
+
+def cost_of(
+    tokens_by_model: dict[str, dict], prices: dict[str, Any]
+) -> tuple[float, bool]:
+    """Cost in USD and whether every model had a price."""
+    total = 0.0
+    complete = True
+    for model, tokens in tokens_by_model.items():
+        price = prices.get(model)
+        if not isinstance(price, dict):
+            complete = False
+            continue
+        for key, count in tokens.items():
+            rate = price.get(key)
+            if rate is None:
+                complete = False
+                continue
+            total += float(count) * float(rate) / 1_000_000
+    return round(total, 6), complete
+
+
+def reference_patch(case: dict[str, Any]) -> str:
+    """The real commit's diff, used as the judge's reference solution."""
+    repo = Path(case["repo"])
+    return git(["diff", f"{case['commit']}^", case["commit"]], repo)
+
+
+def _judge_prompt(
+    case: dict[str, Any], reference: str, candidate: str
+) -> str:
+    return f"""You are grading a candidate software change against a task.
+
+Score the CANDIDATE against the task requirements. Use the REFERENCE human
+solution only as a guide: the candidate need not match it when it reaches the
+same behavior another way. Judge correctness, completeness, scope discipline,
+maintainability and tests.
+
+Reply with only one JSON object and nothing else:
+{{"correctness": 1-5, "completeness": 1-5, "scope": 1-5, "maintainability": 1-5, "tests": 1-5, "overall": 1-10, "notes": "<=60 words"}}
+
+TASK:
+{case.get("task", "")}
+
+REFERENCE SOLUTION DIFF:
+{reference}
+
+CANDIDATE DIFF:
+{candidate}
+"""
+
+
+def judge(
+    case: dict[str, Any], reference_patch: str, candidate_patch: str
+) -> dict[str, Any] | None:
+    """Blind LLM judge of the candidate diff; None when there is no change."""
+    if not candidate_patch or not candidate_patch.strip():
+        return None
+    truncated = {
+        "reference": len(reference_patch) > JUDGE_PATCH_LIMIT,
+        "candidate": len(candidate_patch) > JUDGE_PATCH_LIMIT,
+    }
+    prompt = _judge_prompt(
+        case,
+        reference_patch[:JUDGE_PATCH_LIMIT],
+        candidate_patch[:JUDGE_PATCH_LIMIT],
+    )
+    workdir = tempfile.mkdtemp(prefix="shippy-judge-")
+    try:
+        proc = subprocess.run(
+            [
+                claude_bin(),
+                "-p",
+                "--model",
+                JUDGE_MODEL,
+                "--output-format",
+                "json",
+                "--max-budget-usd",
+                "1",
+                "--tools",
+                "",
+            ],
+            input=prompt,
+            cwd=workdir,
+            capture_output=True,
+            text=True,
+            errors="replace",
+            timeout=JUDGE_TIMEOUT_S,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return {"error": f"{type(exc).__name__}: {exc}", "cost_usd": 0.0}
+    finally:
+        shutil.rmtree(workdir, ignore_errors=True)
+
+    payload = _last_json(proc.stdout)
+    try:
+        if payload is None:
+            payload = json.loads((proc.stdout or "").strip())
+    except (ValueError, TypeError):
+        payload = None
+    cost = 0.0
+    if isinstance(payload, dict):
+        try:
+            cost = float(payload.get("total_cost_usd") or 0.0)
+        except (TypeError, ValueError):
+            cost = 0.0
+    if proc.returncode != 0:
+        detail = _tail(proc.stderr) or f"judge exited {proc.returncode}"
+        return {"error": detail, "cost_usd": cost}
+    result = payload.get("result") if isinstance(payload, dict) else None
+    if not isinstance(result, str):
+        return {"error": "judge printed no result text", "cost_usd": cost}
+    start = result.find("{")
+    end = result.rfind("}")
+    if start < 0 or end <= start:
+        return {"error": "judge result has no JSON object", "cost_usd": cost}
+    try:
+        scores = json.loads(result[start : end + 1])
+    except (ValueError, TypeError):
+        return {"error": "judge result JSON is malformed", "cost_usd": cost}
+    if not isinstance(scores, dict):
+        return {"error": "judge result is not an object", "cost_usd": cost}
+    scores["cost_usd"] = cost
+    scores["truncated"] = truncated
+    scores["model"] = JUDGE_MODEL
+    return scores
+
+
+def skill_hash(path: Path | str) -> str | None:
+    """sha256 over every file's relative path and bytes; None when missing."""
+    root = Path(path)
+    if not root.is_dir():
+        return None
+    digest = hashlib.sha256()
+    files = [
+        item
+        for item in root.rglob("*")
+        if item.is_file() and "__pycache__" not in item.relative_to(root).parts
+    ]
+    for item in sorted(files, key=lambda p: p.relative_to(root).as_posix()):
+        digest.update(item.relative_to(root).as_posix().encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(item.read_bytes())
+    return digest.hexdigest()
+
+
 def run_one(
     case: dict[str, Any],
     arm: str,
@@ -434,14 +1002,17 @@ def run_one(
     run_id: str,
     opts: argparse.Namespace | dict[str, Any],
 ) -> dict[str, Any]:
-    """Prepare, apply the arm's change, grade and record one run."""
-    if arm not in CONTROL_ARMS:
+    """Prepare, drive or apply the arm's change, grade and record one run."""
+    if arm not in ARMS:
         raise NotImplementedError(arm)
-    keep_workspace = bool(
-        opts.get("keep_workspace") if isinstance(opts, dict) else getattr(opts, "keep_workspace", False)
-    )
+    options = opts if isinstance(opts, dict) else vars(opts)
+    keep_workspace = bool(options.get("keep_workspace", False))
+    timeout_min = float(options.get("timeout_min") or 90)
+    no_judge = bool(options.get("no_judge", False))
+    agent = arm in AGENT_ARMS
+
     name = f"{case['id']}__{arm}__{k}"
-    ws = bench_root() / run_id / name
+    ws = slot_workspace(case["id"], arm) if agent else bench_root() / run_id / name
     out = results_root() / run_id / name
     out.mkdir(parents=True, exist_ok=True)
     record: dict[str, Any] = {
@@ -460,24 +1031,63 @@ def run_one(
         "judge": None,
         "workspace": str(ws),
     }
+    if agent:
+        record.update(thread_id=None, drive_error=None, judge_cost_usd=0.0)
     try:
-        base_sha = prepare_workspace(case, ws)
-        if arm == "oracle":
-            apply_oracle(case, ws, base_sha)
-        record["grade"] = grade(case, ws, base_sha, out)
-    except Exception as exc:  # the record must survive a failed prep or grade
+        if agent:
+            _reset_slot(ws)
+            base_sha = prepare_workspace(case, ws)
+            ensure_project(ws, f"bench {case['id']} {arm}")
+            started = time.time()
+            drive = drive_t3(
+                ws,
+                arm,
+                build_turns(arm, case["task"]),
+                f"bench {run_id} {case['id']} {arm} {k}",
+                timeout_min * 60,
+                out=out,
+            )
+            ended = time.time() + 120
+            usage = merge_usage(
+                collect_claude_usage(ws, started, ended),
+                collect_codex_usage(ws, started, ended),
+            )
+            cost, complete = cost_of(usage, load_prices())
+            record["thread_id"] = drive["thread_id"]
+            record["drive_error"] = drive["error"]
+            record["wall_s"] = drive["wall_s"]
+            record["questions"] = drive["questions"]
+            record["tokens_by_model"] = usage
+            record["cost_usd"] = cost
+            record["cost_complete"] = complete
+            record["status"] = (
+                "ok" if drive["status"] == "completed" else drive["status"]
+            )
+            if drive["error"]:
+                record["error"] = drive["error"]
+            record["grade"] = grade(case, ws, base_sha, out)
+            if not no_judge:
+                candidate = (out / "diff.patch").read_text(
+                    encoding="utf-8", errors="replace"
+                )
+                verdict = judge(case, reference_patch(case), candidate)
+                record["judge"] = verdict
+                if verdict:
+                    record["judge_cost_usd"] = float(verdict.get("cost_usd") or 0.0)
+        else:
+            base_sha = prepare_workspace(case, ws)
+            if arm == "oracle":
+                apply_oracle(case, ws, base_sha)
+            record["grade"] = grade(case, ws, base_sha, out)
+    except Exception as exc:  # the record must survive a failed prep, run or grade
         record["status"] = "error"
         record["error"] = f"{type(exc).__name__}: {exc}"
     finally:
         (out / "record.json").write_text(
             json.dumps(record, indent=2) + "\n", encoding="utf-8"
         )
-        if not keep_workspace:
-            try:
-                inside = ws.resolve().is_relative_to(bench_root())
-            except (OSError, ValueError):
-                inside = False
-            if inside and ws.exists():
+        if not agent and not keep_workspace:
+            if _inside_bench_root(ws) and ws.exists():
                 shutil.rmtree(ws, ignore_errors=True)
     return record
 
@@ -517,6 +1127,48 @@ def _preflight_case(case: dict[str, Any]) -> list[str]:
     return problems
 
 
+def _binary_version(binary: str) -> tuple[bool, str]:
+    """Run ``<binary> --version``; return (ok, version or error)."""
+    try:
+        proc = subprocess.run(
+            [binary, "--version"],
+            capture_output=True,
+            text=True,
+            errors="replace",
+            timeout=60,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return False, str(exc) or type(exc).__name__
+    text = (proc.stdout or "").strip() or (proc.stderr or "").strip()
+    if proc.returncode != 0:
+        first = text.splitlines()[0].strip() if text else f"exit {proc.returncode}"
+        return False, first
+    if not text:
+        return False, "no version output"
+    return True, text.splitlines()[0].strip()
+
+
+def _version_or_none(binary: str) -> str | None:
+    ok, text = _binary_version(binary)
+    return text if ok else None
+
+
+def _skills_state() -> dict[str, dict[str, Any]]:
+    state: dict[str, dict[str, Any]] = {}
+    installed_root = Path("~/.claude/skills").expanduser()
+    for name in ("shippy", "shippy-t3"):
+        repo = BENCH_DIR.parent / "skills" / name
+        installed = installed_root / name
+        repo_hash = skill_hash(repo)
+        installed_hash = skill_hash(installed)
+        state[name] = {
+            "repo": str(repo),
+            "installed": str(installed),
+            "match": repo_hash is not None and repo_hash == installed_hash,
+        }
+    return state
+
+
 def _write_meta(run_id: str, cases: list[dict[str, Any]], arms: list[str], runs: int) -> None:
     try:
         head = git(["rev-parse", "HEAD"], BENCH_DIR.parent, check=False)
@@ -530,6 +1182,10 @@ def _write_meta(run_id: str, cases: list[dict[str, Any]], arms: list[str], runs:
         "cases": [case["id"] for case in cases],
         "arms": arms,
         "runs": runs,
+        "claude_version": _version_or_none(claude_bin()),
+        "t3_version": _version_or_none(t3_bin()),
+        "prices": load_prices(),
+        "skills": _skills_state(),
     }
     out = results_root() / run_id
     out.mkdir(parents=True, exist_ok=True)
@@ -564,20 +1220,49 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"FAIL {case['id']} {'; '.join(problems)}")
             else:
                 print(f"OK {case['id']}")
+        for label, binary in (("t3", t3_bin()), ("claude", claude_bin())):
+            ok, text = _binary_version(binary)
+            if not ok:
+                failed = True
+                print(f"FAIL {label} {text}")
+            else:
+                print(f"OK {label} {text}")
+        for name, state in _skills_state().items():
+            if not state["match"]:
+                print(f"WARN skill {name} installed copy differs from repo")
         return 1 if failed else 0
 
     arms = [arm.strip() for arm in args.arms.split(",") if arm.strip()]
-    if not arms or any(arm not in CONTROL_ARMS for arm in arms):
+    if not arms or any(arm not in ARMS for arm in arms):
         print(f"unknown arm(s): {args.arms}", file=sys.stderr)
+        return 2
+    max_cost = args.max_cost_usd
+    if any(arm in AGENT_ARMS for arm in arms) and max_cost is None:
+        print("agent arms require --max-cost-usd", file=sys.stderr)
         return 2
     cases = load_cases(args.cases)
     run_id = args.run_id or datetime.now().strftime("%Y%m%d-%H%M%S")
     _write_meta(run_id, cases, arms, args.runs)
+    spent = 0.0
     for case in cases:
         for arm in arms:
             for k in range(1, args.runs + 1):
+                if max_cost is not None and spent >= max_cost:
+                    print(
+                        f"cost cap reached: ${spent:.6g} >= ${max_cost:.6g}",
+                        flush=True,
+                    )
+                    return 2
                 record = run_one(case, arm, k, run_id, args)
                 print(_format_result(record), flush=True)
+                spent += float(record.get("cost_usd") or 0.0)
+                spent += float(record.get("judge_cost_usd") or 0.0)
+                if arm in AGENT_ARMS and not record.get("cost_complete", True):
+                    print(
+                        f"{case['id']} {arm} {k}: cost is incomplete "
+                        "(unpriced model); it is not counted toward the cap",
+                        flush=True,
+                    )
     return 0
 
 
