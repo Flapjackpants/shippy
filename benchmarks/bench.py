@@ -341,7 +341,7 @@ def apply_oracle(case: dict[str, Any], ws: Path, base_sha: str) -> None:
             f"{applied.stderr.decode('utf-8', 'replace').strip()}"
         )
     git(["add", "-A"], ws)
-    _bench_commit(ws, "oracle")
+    _bench_commit(ws, "feat: apply the reference commit")
 
 
 def _tail(text: str | None, limit: int = 4000) -> str:
